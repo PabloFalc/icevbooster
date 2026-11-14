@@ -49,10 +49,14 @@ export function parseNumber(s: string): number | null {
 
 export interface Header { key: string; x: number; x0: number; x1: number }
 
+/** First non-numeric token of a normalized header word: '1-P1' → 'p1', 'MÉDIA' → 'media'. */
+const headerToken = (text: string) => normalizeName(text).split(' ').find((t) => !/^\d+$/.test(t));
+
 /**
  * Finds the header row (the first row containing a word that normalizes to `anchor`) and the
- * x-center of each label. `labels` maps a key to the normalized word that marks it; repeat a
- * word to target its next occurrence (e.g. 'ch' three times for CH, CH ext., CH integr.).
+ * x-center of each label. `labels` maps a key to the normalized word that marks it (leading
+ * numbering such as '1-' is ignored); repeat a word to target its next occurrence in x order
+ * (e.g. 'ch' three times for CH, CH ext., CH integr.).
  */
 export function findHeaders(
   rows: OcrWord[][],
@@ -64,7 +68,7 @@ export function findHeaders(
   const used = new Set<OcrWord>();
   const headers: Header[] = [];
   for (const [key, word] of labels) {
-    const hit = rows[index].find((w) => !used.has(w) && normalizeName(w.text).split(' ')[0] === word);
+    const hit = rows[index].find((w) => !used.has(w) && headerToken(w.text) === word);
     if (!hit) continue;
     used.add(hit);
     headers.push({ key, x: centerX(hit), x0: hit.x0, x1: hit.x1 });
@@ -103,7 +107,9 @@ export function cleanName(words: OcrWord[]): string {
 /**
  * Picks the subject-name cell of a row: the cell with a word of 3+ letters that starts left of the
  * midpoint between the Disciplina header and the next header and holds no code-like word
- * ('ES037', '036C'), nearest to the Disciplina header.
+ * ('ES037', '036C'), nearest to the Disciplina header. Words starting at the next header's left
+ * edge (less half a word height) belong to that column and are cut off, for when a long name runs
+ * into the next column's text with no gap.
  * (Names are left-aligned and wide, so nearest-header-center misplaces them.)
  */
 export function nameCell(rowCells: OcrWord[][], disciplina: Header, next: Header | undefined): OcrWord[] | null {
@@ -117,19 +123,24 @@ export function nameCell(rowCells: OcrWord[][], disciplina: Header, next: Header
     const dist = Math.max(0, disciplina.x0 - x1, x0 - disciplina.x1);
     if (dist < bestDist) [best, bestDist] = [cell, dist];
   }
-  return best;
+  return best && next ? best.filter((w) => w.x0 < next.x0 - (w.y1 - w.y0) / 2) : best;
 }
 
 export interface TableRow { nome: string; values: Record<string, string[]> }
 
 /**
  * Reads a portal table: header row is the row with a 'Disciplina' word, name comes from
- * `nameCell`, every other word bucketed by `columnOf`. A row whose name has no numeric cells is a
- * wrapped-name fragment and is merged into the vertically nearest row that has numbers, if that
+ * `nameCell`, every other word bucketed by `columnOf`. A row counts as data when it has a numeric
+ * cell or, if `dataKey` is given, any word in that column. A row that is not data is a
+ * wrapped-name fragment and is merged into the vertically nearest data row, if that
  * row is within 1.5 line heights (otherwise it is stray text and dropped).
  * Rows without a name after merging are dropped.
  */
-export function readTable(words: OcrWord[], labels: [key: string, word: string][]): TableRow[] {
+export function readTable(
+  words: OcrWord[],
+  labels: [key: string, word: string][],
+  dataKey?: string,
+): TableRow[] {
   const rows = groupRows(words);
   const found = findHeaders(rows, 'disciplina', labels);
   if (!found) return [];
@@ -145,15 +156,15 @@ export function readTable(words: OcrWord[], labels: [key: string, word: string][
       if (name.includes(w)) continue;
       (values[columnOf(w, headers)] ??= []).push(w.text);
     }
-    const numeric = Object.entries(values).some(
-      ([key, v]) => key !== 'disciplina' && v.some((t) => parseNumber(t) !== null),
-    );
-    return { y: median(row.map(centerY)), name, values, numeric, lines: [] as { y: number; words: OcrWord[] }[] };
+    const isData =
+      (dataKey !== undefined && dataKey in values) ||
+      Object.entries(values).some(([key, v]) => key !== 'disciplina' && v.some((t) => parseNumber(t) !== null));
+    return { y: median(row.map(centerY)), name, values, isData, lines: [] as { y: number; words: OcrWord[] }[] };
   });
 
-  const data = parsed.filter((r) => r.numeric);
+  const data = parsed.filter((r) => r.isData);
   const maxGap = 1.5 * lineHeight(words);
-  for (const frag of parsed.filter((r) => !r.numeric && r.name.length)) {
+  for (const frag of parsed.filter((r) => !r.isData && r.name.length)) {
     const target = data.reduce<(typeof data)[number] | undefined>(
       (best, r) => (!best || Math.abs(r.y - frag.y) < Math.abs(best.y - frag.y) ? r : best),
       undefined,

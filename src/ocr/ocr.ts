@@ -1,4 +1,4 @@
-import { createWorker, type Block } from 'tesseract.js';
+import { createWorker, PSM, type Block } from 'tesseract.js';
 import type { OcrWord } from '../domain/types';
 
 /** Flattens tesseract blocks into words, dividing coordinates by `scale` so they refer to the original image. */
@@ -57,12 +57,23 @@ async function prepareCanvas(file: Blob, scale: number): Promise<HTMLCanvasEleme
   return canvas;
 }
 
+export interface OcrOptions {
+  /** Canvas upscale factor (default 2). */
+  upscale?: number;
+  /** Sparse-text page segmentation: finds scattered text such as grid cells (used for the horário print). */
+  sparse?: boolean;
+}
+
+/** OCR settings for the horário print: its small serif cell text reads best at 3× with sparse segmentation. */
+export const HORARIO_OCR: OcrOptions = { upscale: 3, sparse: true };
+
 /** Browser OCR: upscales the image on a canvas and returns word boxes in original-image pixels. */
-export async function runOcr(file: Blob, opts: { upscale?: number } = {}): Promise<OcrWord[]> {
+export async function runOcr(file: Blob, opts: OcrOptions = {}): Promise<OcrWord[]> {
   const scale = opts.upscale ?? 2;
   const canvas = await prepareCanvas(file, scale);
   const worker = await createWorker('por');
   try {
+    if (opts.sparse) await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
     const { data } = await worker.recognize(canvas, {}, { blocks: true });
     return flattenBlocks(data.blocks, scale);
   } finally {

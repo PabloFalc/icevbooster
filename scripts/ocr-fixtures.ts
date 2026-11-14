@@ -1,18 +1,20 @@
 // OCRs the portal screenshots in examples/ (Node, tesseract.js 'por') and writes word boxes
-// to tests/fixtures/*.json. Mirrors the browser runOcr: bilinear upscale, then normalizeContrast.
-// Run: npx tsx scripts/ocr-fixtures.ts
+// to tests/fixtures/*.json. Mirrors the browser runOcr: bilinear upscale, then normalizeContrast,
+// with the same per-print options (HORARIO_OCR for the horário).
+// Run: npx tsx scripts/ocr-fixtures.ts [name ...]   (no names → every fixture)
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
-import { createWorker } from 'tesseract.js';
-import { flattenBlocks, normalizeContrast } from '../src/ocr/ocr';
+import { createWorker, PSM } from 'tesseract.js';
+import { flattenBlocks, normalizeContrast, HORARIO_OCR, type OcrOptions } from '../src/ocr/ocr';
 
-const SCALE = 2;
 const FIXTURES: Record<string, string> = {
   'Screenshot 2026-11-14 151505.png': 'faltas',
   'Screenshot 2026-11-14 153848.png': 'historico',
   'Screenshot 2026-11-14 151516.png': 'notas',
   'Screenshot 2026-11-14 153714.png': 'horario',
 };
+const OPTIONS: Record<string, OcrOptions> = { horario: HORARIO_OCR };
+const only = process.argv.slice(2);
 
 function upscale(src: PNG, scale: number): PNG {
   const out = new PNG({ width: src.width * scale, height: src.height * scale });
@@ -37,10 +39,13 @@ mkdirSync('tests/fixtures', { recursive: true });
 const worker = await createWorker('por');
 try {
   for (const [file, name] of Object.entries(FIXTURES)) {
-    const img = upscale(PNG.sync.read(readFileSync(`examples/${file}`)), SCALE);
+    if (only.length && !only.includes(name)) continue;
+    const { upscale: scale = 2, sparse = false } = OPTIONS[name] ?? {};
+    const img = upscale(PNG.sync.read(readFileSync(`examples/${file}`)), scale);
     normalizeContrast(img.data, img.width, img.height);
+    await worker.setParameters({ tessedit_pageseg_mode: sparse ? PSM.SPARSE_TEXT : PSM.AUTO });
     const { data } = await worker.recognize(PNG.sync.write(img), {}, { blocks: true });
-    const words = flattenBlocks(data.blocks, SCALE).map((w) => ({
+    const words = flattenBlocks(data.blocks, scale).map((w) => ({
       ...w,
       x0: Math.round(w.x0), y0: Math.round(w.y0), x1: Math.round(w.x1), y1: Math.round(w.y1),
     }));
