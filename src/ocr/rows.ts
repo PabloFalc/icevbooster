@@ -9,10 +9,15 @@ function median(values: number[]): number {
   return s.length ? s[s.length >> 1] : 0;
 }
 
+/** Median height of words with 2+ letters/digits (punctuation boxes are too thin to count). */
+function lineHeight(words: OcrWord[]): number {
+  const textual = words.filter((w) => /[\p{L}\p{N}]{2}/u.test(w.text));
+  return median((textual.length ? textual : words).map((w) => w.y1 - w.y0));
+}
+
 /** Clusters words into visual rows by vertical center (tolerance: half the median word height). */
 export function groupRows(words: OcrWord[]): OcrWord[][] {
-  const textual = words.filter((w) => /[\p{L}\p{N}]{2}/u.test(w.text));
-  const tolerance = median((textual.length ? textual : words).map((w) => w.y1 - w.y0)) / 2;
+  const tolerance = lineHeight(words) / 2;
   const rows: { center: number; words: OcrWord[] }[] = [];
   for (const w of [...words].sort((a, b) => centerY(a) - centerY(b))) {
     const row = rows[rows.length - 1];
@@ -120,7 +125,8 @@ export interface TableRow { nome: string; values: Record<string, string[]> }
 /**
  * Reads a portal table: header row is the row with a 'Disciplina' word, name comes from
  * `nameCell`, every other word bucketed by `columnOf`. A row whose name has no numeric cells is a
- * wrapped-name fragment and is merged into the vertically nearest row that has numbers.
+ * wrapped-name fragment and is merged into the vertically nearest row that has numbers, if that
+ * row is within 1.5 line heights (otherwise it is stray text and dropped).
  * Rows without a name after merging are dropped.
  */
 export function readTable(words: OcrWord[], labels: [key: string, word: string][]): TableRow[] {
@@ -146,12 +152,13 @@ export function readTable(words: OcrWord[], labels: [key: string, word: string][
   });
 
   const data = parsed.filter((r) => r.numeric);
+  const maxGap = 1.5 * lineHeight(words);
   for (const frag of parsed.filter((r) => !r.numeric && r.name.length)) {
     const target = data.reduce<(typeof data)[number] | undefined>(
       (best, r) => (!best || Math.abs(r.y - frag.y) < Math.abs(best.y - frag.y) ? r : best),
       undefined,
     );
-    target?.lines.push({ y: frag.y, words: frag.name });
+    if (target && Math.abs(target.y - frag.y) <= maxGap) target.lines.push({ y: frag.y, words: frag.name });
   }
   return data
     .map((r) => ({ ...r, lines: [...r.lines, { y: r.y, words: r.name }].sort((a, b) => a.y - b.y) }))

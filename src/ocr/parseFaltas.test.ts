@@ -51,3 +51,43 @@ describe('parseFaltas (real screenshot OCR)', () => {
     expect(f.map((r) => r.nome)).toContain('Eletiva II');
   });
 });
+
+describe('parseFaltas (synthetic rows)', () => {
+  const w = (text: string, x0: number, y0: number) => ({ text, x0, y0, x1: x0 + 30, y1: y0 + 10 });
+  const header = [
+    w('Disciplina', 400, 0), w('Turma', 780, 0), w('BIM', 970, 0), w('BIM', 1150, 0),
+    w('TOTAL', 1320, 0), w('Percentual', 1500, 0),
+  ];
+  const row = (y: number, name: string, cells: [number, string][]) => [
+    w(name, 160, y), w('036C', 780, y), ...cells.map(([x, t]) => w(t, x, y)),
+  ];
+
+  it('repairs or rejects impossible percentuals', () => {
+    const f = parseFaltas([
+      ...header,
+      ...row(40, 'Alfa', [[1320, '4'], [1500, '1111%']]),
+      ...row(80, 'Beta', [[1320, '4'], [1500, '11,11%']]),
+      ...row(120, 'Gama', [[1320, '4'], [1500, '250%']]),
+    ]);
+    expect(f.map((r) => r.percentual)).toEqual([11.11, 11.11, null]);
+  });
+
+  it('sums bimesters when TOTAL is missing, and returns null when only the percentual shows faltas', () => {
+    const f = parseFaltas([
+      ...header,
+      ...row(40, 'Alfa', [[970, '2'], [1150, '2'], [1500, '11.11%']]),
+      ...row(80, 'Beta', [[1500, '11.11%']]),
+      ...row(120, 'Gama', [[1500, '0%']]),
+    ]);
+    expect(f.map((r) => r.faltas)).toEqual([4, null, 0]);
+  });
+
+  it('drops stray text far below the table instead of appending it to a name', () => {
+    const f = parseFaltas([
+      ...header,
+      ...row(40, 'Alfa', [[1320, '4'], [1500, '11.11%']]),
+      w('Legenda', 160, 200),
+    ]);
+    expect(f).toEqual([{ nome: 'Alfa', turma: '036C', faltas: 4, percentual: 11.11 }]);
+  });
+});
