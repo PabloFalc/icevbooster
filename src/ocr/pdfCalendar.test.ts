@@ -37,4 +37,13 @@ describe('extractCalendarCandidates', () => {
     const c = extractCalendarCandidates('31/02 Feriado\n10/03 Feriado\n10/03 Feriado\n05/03 Recesso', 2026);
     expect(c.map((x) => x.date)).toEqual(['2026-03-05', '2026-03-10']);
   });
+
+  it('matches range separators case-insensitively', () => {
+    expect(extractCalendarCandidates('24 A 26/12 Recesso', 2026).map((x) => x.date)).toEqual(['2026-12-24', '2026-12-25', '2026-12-26']);
+    expect(extractCalendarCandidates('29/12 ATÉ 02/01 Recesso', 2026)).toHaveLength(5);
+  });
+
+  it('skips a backwards range within the same month instead of rolling the year', () => {
+    expect(extractCalendarCandidates('15 a 10/03 Recesso', 2026)).toEqual([]);
+  });
 });

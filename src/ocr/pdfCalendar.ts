@@ -10,7 +10,7 @@ export interface CalendarCandidate {
 }
 
 const SEM_AULA = /\b(feriado|recesso|sem aula|nao havera aula|ponto facultativo)\b/;
-const RANGE = /(?<!\d)(\d{1,2})(?:\/(\d{1,2}))?(?:\/(\d{4}))?\s*(?:a|at[eé]|-|–)\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?(?!\d)/g;
+const RANGE = /(?<!\d)(\d{1,2})(?:\/(\d{1,2}))?(?:\/(\d{4}))?\s*(?:a|at[eé]|-|–)\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?(?!\d)/gi;
 const SINGLE = /(?<!\d)(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?(?!\d)/g;
 
 function toIso(y: number, m: number, d: number): Iso | null {
@@ -42,9 +42,10 @@ export function extractCalendarCandidates(text: string, year: number): CalendarC
 
     const rest = line.replace(RANGE, (_m, d1, m1, y1, d2, m2, y2) => {
       const startY = y1 ? Number(y1) : y2 ? Number(y2) : year;
-      const start = toIso(startY, m1 ? Number(m1) : Number(m2), Number(d1));
+      const startM = m1 ? Number(m1) : Number(m2);
+      const start = toIso(startY, startM, Number(d1));
       let end = toIso(y2 ? Number(y2) : startY, Number(m2), Number(d2));
-      if (start && !y2 && (!end || end < start)) end = toIso(startY + 1, Number(m2), Number(d2)); // crosses into January
+      if (start && !y2 && startM > Number(m2) && (!end || end < start)) end = toIso(startY + 1, Number(m2), Number(d2)); // crosses into January
       if (start && end && end >= start) {
         for (let d = start, i = 0; d <= end && i < 366; d = addDays(d, 1), i++) add(d, label, kind);
       }
