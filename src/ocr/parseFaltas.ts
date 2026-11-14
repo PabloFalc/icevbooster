@@ -22,14 +22,16 @@ function percentual(v: string[] | undefined): number | null {
 
 /**
  * TOTAL FALTAS: read directly; else the sum of the bimester cells; else 0 for a truly blank row,
- * but null when the percentual says there are faltas (never silently under-count).
+ * but null when the percentual says there are faltas or is present but unreadable (never silently under-count).
  */
 function faltas(values: Record<string, string[]>, pct: number | null): number | null {
   const total = first(values.total);
   if (total !== null) return total;
   const bims = [first(values.bim1), first(values.bim2)].filter((n): n is number => n !== null);
   if (bims.length) return bims.reduce((a, b) => a + b, 0);
-  return pct !== null && pct > 0 ? null : 0;
+  const pctShown = values.percentual?.some((t) => t.trim() !== '') ?? false;
+  if (pct === null) return pctShown ? null : 0;
+  return pct > 0 ? null : 0;
 }
 
 /** Rows of the portal's Faltas print. */

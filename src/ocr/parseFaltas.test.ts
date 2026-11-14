@@ -82,6 +82,16 @@ describe('parseFaltas (synthetic rows)', () => {
     expect(f.map((r) => r.faltas)).toEqual([4, null, 0]);
   });
 
+  it('an unreadable percentual with no TOTAL or bimester cells is unknown, not 0', () => {
+    const f = parseFaltas([
+      ...header,
+      w('Alfa', 160, 40), w('036', 780, 40), w('ll,ll%', 1500, 40), // numeric turma keeps it a data row
+      ...row(80, 'Beta', [[1500, '250%']]),
+      w('Gama', 160, 120), w('036', 780, 120),
+    ]);
+    expect(f.map((r) => r.faltas)).toEqual([null, null, 0]);
+  });
+
   it('drops stray text far below the table instead of appending it to a name', () => {
     const f = parseFaltas([
       ...header,
