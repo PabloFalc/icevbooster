@@ -290,3 +290,5 @@ button.st { cursor: pointer; min-height: 22px; }
   .part .dim { display: none; }
   .simtab { max-height: 260px; grid-template-columns: repeat(2, 1fr); }
 }
+
+.footer-erase { border: none; background: none; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; margin-top: 6px; padding: 6px; }
