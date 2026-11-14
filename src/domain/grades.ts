@@ -48,7 +48,8 @@ const KEYS: Key[] = ['p1', 'p2', 'p3'];
 function guaranteed(s: GradeSlot): number {
   return s.state === 'nao_feita' ? 0 : clampGrade(s.value ?? 0);
 }
-function capacity(s: GradeSlot): number {
+/** What a slot can still earn: 0 when completa, 10 when não feita; incompleta: `potencial`, never above 10 − value. */
+export function capacity(s: GradeSlot): number {
   if (s.state === 'completa') return 0;
   if (s.state === 'nao_feita') return 10;
   const v = clampGrade(s.value ?? 0);

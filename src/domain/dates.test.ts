@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addDays, weekdayOf, formatBr, formatNum, formatNeeded, todayIso, parseDecimal } from './dates';
+import { addDays, weekdayOf, formatBr, formatNum, formatNeeded, formatFloor, todayIso, parseDecimal } from './dates';
 
 describe('dates', () => {
   it('weekdayOf', () => {
@@ -16,6 +16,15 @@ describe('dates', () => {
   it('formatNum', () => {
     expect(formatNum(7.15)).toBe('7,15');
     expect(formatNum(7, 1)).toBe('7,0');
+  });
+  it('formatFloor never rounds a guaranteed or achievable figure up', () => {
+    expect(formatFloor(10 / 3)).toBe('3,33');
+    expect(formatFloor(2 / 3)).toBe('0,66');
+    expect(formatFloor(4.3)).toBe('4,30');
+    expect(formatFloor(0.976)).toBe('0,97');
+    expect(formatFloor(9.999)).toBe('9,99');
+    expect(formatFloor(21)).toBe('21,00');
+    expect(formatFloor(Number.NaN)).toBe('—');
   });
   it('formatNeeded never rounds in the student favor', () => {
     expect(formatNeeded(10 / 3)).toBe('3,34');

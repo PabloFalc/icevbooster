@@ -40,6 +40,26 @@ describe('Notas page', () => {
     expect(c.getByText('Detalhar na calculadora ›').getAttribute('href')).toBe('#/calculadora?m=marketing-digital&p=p2');
   });
 
+  it('needed amounts round up, current and achievable figures round down', () => {
+    importNotas([nota('Marketing Digital', null)], '2026-11-14');
+    setGradeSlot('marketing-digital', 'p1', { state: 'incompleta', value: 0.976 });
+    render(<Notas />);
+    const c = within(card('Marketing Digital'));
+    expect(c.getByText('0,97')).toBeTruthy(); // pontos atuais
+    expect(c.getByText('20,03')).toBeTruthy(); // faltam p/ 21
+    expect(c.getByText(/pode ganhar mais 9,02/)).toBeTruthy();
+    expect(c.getAllByText('6,68')).toHaveLength(3); // 20,024 / 3 per prova
+    expect(c.getByText(/no que falta da P1 \(de 9,02\)/)).toBeTruthy();
+  });
+
+  it('REC path: máx. rounds down, REC shares round up', () => {
+    importNotas([nota('Difícil', 0.976)], '2026-11-14');
+    render(<Notas />);
+    const c = within(card('Difícil'));
+    expect(c.getByText(/Passar direto não é possível \(máx\. 20,97\)/)).toBeTruthy();
+    expect(c.getAllByText('5,52')).toHaveLength(2); // 11,024 / 2
+  });
+
   it('só com REC path', () => {
     importNotas([nota('Difícil', 0.5, 2)], '2026-11-14');
     render(<Notas />);

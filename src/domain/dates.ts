@@ -33,6 +33,12 @@ export function formatNeeded(n: number): string {
   return formatNum(Math.max(0, Math.ceil(n * 100 - 1e-9) / 100));
 }
 
+/** A guaranteed or achievable amount: floored to 2 decimals (1e-9 tolerance for float noise), never rounded up. */
+export function formatFloor(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  return formatNum(Math.floor(n * 100 + 1e-9) / 100);
+}
+
 /** Parses a typed number, accepting a comma decimal ('7,5' → 7.5); null when empty or not a finite number. */
 export function parseDecimal(s: string): number | null {
   const t = s.trim().replace(',', '.');

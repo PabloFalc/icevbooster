@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { gradeOutlook } from '../../domain/grades';
+import { capacity, gradeOutlook } from '../../domain/grades';
 import type { Outlook } from '../../domain/grades';
-import { formatBr, formatNum, parseDecimal, todayIso } from '../../domain/dates';
+import { formatBr, formatFloor, formatNeeded, formatNum, parseDecimal, todayIso } from '../../domain/dates';
 import { notaFromAcertos } from '../../domain/simulado';
 import type { GradeSlot, SlotState, Subject, SubjectGrades } from '../../domain/types';
 import { importNotas, setGradeSlot, state } from '../../state/store';
@@ -17,12 +17,7 @@ const BADGE: Record<Outlook['status'], [string, string]> = {
 };
 
 const emptySlot = (): GradeSlot => ({ state: 'nao_feita', value: null });
-const clampV = (v: number | null) => Math.min(10, Math.max(0, v ?? 0));
 const fmtInput = (v: number | null) => (v === null ? '' : String(v).replace('.', ','));
-/** What an incompleta slot can still earn: `potencial`, else 10 − value (never above 10 − value). */
-const gap = (s: GradeSlot) => Math.min(s.potencial ?? 10 - clampV(s.value), 10 - clampV(s.value));
-/** What the slot can still earn (same rule as gradeOutlook). */
-const capacity = (s: GradeSlot) => (s.state === 'completa' ? 0 : s.state === 'nao_feita' ? 10 : gap(s));
 
 /** Text input for a slot value: commits on blur/Enter; comma decimals; empty clears; garbage reverts. */
 function GradeInput({ value, label, readOnly, onCommit }: {
@@ -76,7 +71,7 @@ function Prova({ s, k, slot, linked }: { s: Subject; k: Key; slot: GradeSlot; li
           {STATE_TEXT[slot.state]}
         </button>
       )}
-      {slot.state === 'incompleta' && <small class="earn">pode ganhar mais {formatNum(gap(slot))}</small>}
+      {slot.state === 'incompleta' && <small class="earn">pode ganhar mais {formatFloor(capacity(slot))}</small>}
     </div>
   );
 }
@@ -97,10 +92,10 @@ function Need({ g, o }: { g: SubjectGrades; o: Outlook }) {
   }
   const open = KEYS.filter((k) => o.shares[k] !== undefined);
   const lines = open.map((k, i) => {
-    const x = <b>{formatNum(o.shares[k] as number)}</b>;
+    const x = <b>{formatNeeded(o.shares[k] as number)}</b>;
     const lead = i === 0 ? (o.status === 'rec' ? '' : 'Tire ') : 'e ';
     if (k === 'p3') return <span key={k}>{lead}{x} no simulado<span class="acc">{acertosText(o.simuladoAcertos)}</span></span>;
-    const where = g[k].state === 'incompleta' ? ` no que falta da ${k.toUpperCase()} (de ${formatNum(gap(g[k]))})` : ` na ${k.toUpperCase()}`;
+    const where = g[k].state === 'incompleta' ? ` no que falta da ${k.toUpperCase()} (de ${formatFloor(capacity(g[k]))})` : ` na ${k.toUpperCase()}`;
     return <span key={k}>{lead}{x}{where}</span>;
   });
   const body = lines.flatMap((l, i) => (i ? [<br key={`b${i}`} />, l] : [l]));
@@ -110,10 +105,10 @@ function Need({ g, o }: { g: SubjectGrades; o: Outlook }) {
     <div class="need inner">
       {open.length > 0 ? (
         <>
-          {max < 21 && <>Passar direto não é possível (máx. {formatNum(max)}).<br /></>}
+          {max < 21 && <>Passar direto não é possível (máx. {formatFloor(max)}).<br /></>}
           Para ir à REC (média ≥ 4): {body}<br />
         </>
-      ) : <>Média {formatNum(o.atual / 3)}: vai para a REC.<br /></>}
+      ) : <>Média {formatFloor(o.atual / 3)}: vai para a REC.<br /></>}
       Aí precisaria de <b>{o.recQuestoes}/10</b> questões na REC.
     </div>
   );
@@ -135,8 +130,8 @@ function SubjectCard({ s }: { s: Subject }) {
         {KEYS.map((k) => <Prova key={k} s={s} k={k} slot={g[k]} linked={k !== 'p3' && `${s.id}:${k}` in composites} />)}
       </div>
       <div class="three">
-        <div><b>{formatNum(o.atual)}</b><span>pontos atuais</span></div>
-        <div><b>{formatNum(o.restantes)}</b><span>faltam p/ 21</span></div>
+        <div><b>{formatFloor(o.atual)}</b><span>pontos atuais</span></div>
+        <div><b>{formatNeeded(o.restantes)}</b><span>faltam p/ 21</span></div>
         <div><b>{remaining}</b><span>{remaining === 1 ? 'prova restante' : 'provas restantes'}</span></div>
       </div>
       <Need g={g} o={o} />
