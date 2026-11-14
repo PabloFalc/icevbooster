@@ -18,6 +18,9 @@ describe('parseHorario (real screenshot OCR)', () => {
     const hz = parseHorario(horarioFixture);
     expect(hz.ok).toBe(true);
     expect(hz.cells).toHaveLength(9);
+    const quinta = hz.cells.find((c) => c.weekday === 4 && c.slot === 0);
+    expect(quinta?.nome).toMatch(/Projetos/);
+    expect(namesMatch(quinta!.nome, 'Gestão de Projetos de Software')).toBe(true);
   });
 });
 
@@ -42,9 +45,10 @@ describe('parseHorario (synthetic)', () => {
     // slot 1 (20:20) spans y 100..160
     word('20:20', 0, 130), word('-', 45, 130), word('22:00', 55, 130),
     word('Pesquisa', 200, 115), word('Operacional', 200, 130), word('Mauro', 210, 145),
+    word('Banco', 500, 115), word('de', 545, 115), word('Dados', 500, 130), word('Avançados', 545, 130),
   ];
 
-  it('places cells by day column and time slot, dropping the professor line', () => {
+  it('places cells by day column and time slot, dropping only a single-word professor line', () => {
     const hz = parseHorario(grid);
     expect(hz.ok).toBe(true);
     expect(hz.cells).toEqual(
@@ -52,12 +56,13 @@ describe('parseHorario (synthetic)', () => {
         { weekday: 1, slot: 0, nome: 'Eletiva VI' },
         { weekday: 2, slot: 0, nome: 'Eletiva II Gestão Pessoas' },
         { weekday: 3, slot: 0, nome: 'Estágio' },
-        { weekday: 4, slot: 0, nome: 'Gestão de' },
+        { weekday: 4, slot: 0, nome: 'Gestão de Projetos' },
         { weekday: 5, slot: 0, nome: 'Marketing Digital' },
         { weekday: 2, slot: 1, nome: 'Pesquisa Operacional' },
+        { weekday: 5, slot: 1, nome: 'Banco de Dados Avançados' },
       ]),
     );
-    expect(hz.cells).toHaveLength(6);
+    expect(hz.cells).toHaveLength(7);
   });
 
   it('is not ok with fewer than 5 cells', () => {

@@ -12,11 +12,23 @@ export function normalizeName(s: string): string {
 
 const STOPWORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
 const ROMAN = /^(i{1,3}|iv|v|vi{0,3}|ix|x)$/;
+const BAR_RUN = /^[1lI|]{1,3}$/; // OCR of I/II/III: '1', '11', 'l', '||', 'Il'
+
+/**
+ * Reads OCR'd bar runs after a word as the roman numeral of that length ('Eletiva 11' → ii), so
+ * the numeral guard still applies. Whole raw tokens are read first, because normalizing drops '|'.
+ */
+function tokens(s: string): string[] {
+  const raw = s.trim().split(/\s+/).map((t, i) => (i > 0 && BAR_RUN.test(t) ? 'I'.repeat(t.length) : t));
+  return normalizeName(raw.join(' '))
+    .split(' ')
+    .map((t, i) => (i > 0 && BAR_RUN.test(t) ? 'i'.repeat(t.length) : t));
+}
 
 function split(s: string): { words: string[]; numerals: Set<string> } {
   const words: string[] = [];
   const numerals = new Set<string>();
-  for (const t of normalizeName(s).split(' ')) {
+  for (const t of tokens(s)) {
     if (!t || STOPWORDS.has(t)) continue;
     if (ROMAN.test(t)) numerals.add(t);
     else words.push(t);

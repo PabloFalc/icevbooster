@@ -14,6 +14,11 @@ describe('parseNotas (real screenshot OCR)', () => {
     expect(n.find((r) => r.nome === 'Projeto de Extensão VI')?.p1).toBeNull();
     expect(n).toHaveLength(7);
   });
+  it("repairs a numeral glued to the last word ('Software|l')", () => {
+    expect(n.find((r) => r.nome.startsWith('Estágio'))?.nome).toBe(
+      'Estágio Curricular Supervisionado - Fábrica de Software I',
+    );
+  });
 });
 
 describe('parseNotas (synthetic)', () => {

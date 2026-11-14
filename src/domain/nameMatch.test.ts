@@ -21,6 +21,11 @@ describe('namesMatch', () => {
     expect(namesMatch('Eletiva VI', 'Eletiva II')).toBe(false);
     expect(namesMatch('Eletiva', 'Eletiva II')).toBe(true);
   });
+  it('reads OCR bar runs after a word as roman numerals', () => {
+    expect(namesMatch('Eletiva 11 - Gestão de Pessoas', 'Eletiva II')).toBe(true);
+    expect(namesMatch('Eletiva 11 - Gestão de Pessoas', 'Eletiva VI')).toBe(false);
+    expect(namesMatch('Proj. de Extensão 1', 'Projeto de Extensão VI')).toBe(false);
+  });
   it('never matches names empty after stopwords/numerals', () => {
     expect(namesMatch('de e', 'de e')).toBe(false);
     expect(namesMatch('II', 'II')).toBe(false);

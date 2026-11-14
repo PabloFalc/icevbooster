@@ -96,11 +96,19 @@ export function withoutLinks(row: OcrWord[]): OcrWord[] {
 
 const CODE = /\p{L}.*\d|\d.*\p{L}/u; // e.g. 'ES037', '036C'
 const BARS = /^[Il|1]{1,3}$/;
+// A bar run glued to the end of a lowercase-ending word: 'Software|l'. Each '|' is one numeral
+// stroke; the l/I/1 around it are OCR noise from the same glyph.
+const GLUED_BARS = /^(.*\p{Ll})([Il|1]*\|[Il|1]*)$/u;
 
-/** Joins name words, repairing roman numerals OCR'd as bars ('||' → 'II') and dropping stray dashes at the ends. */
+/**
+ * Joins name words, repairing roman numerals OCR'd as bars ('||' → 'II', a glued final
+ * 'Software|l' → 'Software I') and dropping stray dashes at the ends.
+ */
 export function cleanName(words: OcrWord[]): string {
   const tokens = words.map((w, i) => (i > 0 && BARS.test(w.text) ? 'I'.repeat(w.text.length) : w.text));
   while (tokens.length && /^[-—–]+$/.test(tokens[tokens.length - 1])) tokens.pop();
+  const glued = tokens.length ? GLUED_BARS.exec(tokens[tokens.length - 1]) : null;
+  if (glued) tokens.splice(-1, 1, glued[1], 'I'.repeat(glued[2].split('|').length - 1));
   return tokens.join(' ');
 }
 

@@ -9,6 +9,19 @@ const LABELS: [string, string][] = [
 const MIN_CELLS = 5;
 
 const centerY = (w: OcrWord) => (w.y0 + w.y1) / 2;
+const TIME = /^\d{1,2}[:.,;-]?\d{2}$/; // '18:20', '22-00'
+const CONNECTOR = /^(de|da|do|das|dos|e|-|–|—)$/i;
+
+/**
+ * The last line of a 2+ line cell is the professor when it is a single word (professor names are:
+ * Stela, Mauro, Ítalo…) and the line above does not end in a connector ('Gestão de' / 'Projetos'
+ * is a wrapped subject name, not a professor).
+ */
+function isProfessorLine(lines: OcrWord[][]): boolean {
+  if (lines.length < 2 || lines[lines.length - 1].length !== 1) return false;
+  const above = lines[lines.length - 2];
+  return !CONNECTOR.test(above[above.length - 1].text);
+}
 
 /** y-center of the first row holding the time `hhmm` (OCR may read the colon as '.', ',' or drop it). */
 function slotY(rows: OcrWord[][], hhmm: string): number | null {
@@ -20,7 +33,7 @@ function slotY(rows: OcrWord[][], hhmm: string): number | null {
 /**
  * Reads the portal's weekly schedule print: day columns from the Segunda…Sexta header words,
  * slots from the 18:20 and 20:20 time labels (the boundary is halfway between them). A cell's
- * text is its words line by line, minus the last line (the professor) when it has 2+ lines.
+ * text is its words line by line, minus the professor line (see `isProfessorLine`).
  * `ok` is false when fewer than 5 cells were found, so the UI falls back to the manual grid.
  */
 export function parseHorario(words: OcrWord[]): { cells: HorarioCell[]; ok: boolean } {
@@ -37,7 +50,7 @@ export function parseHorario(words: OcrWord[]): { cells: HorarioCell[]; ok: bool
   const buckets = new Map<string, OcrWord[]>();
   for (const w of words) {
     const y = centerY(w);
-    if (y <= headerBottom || y > bottom) continue;
+    if (y <= headerBottom || y > bottom || TIME.test(w.text)) continue;
     const day = columnOf(w, found.headers);
     if (day === '0') continue;
     const key = `${day}:${y < mid ? 0 : 1}`;
@@ -47,7 +60,7 @@ export function parseHorario(words: OcrWord[]): { cells: HorarioCell[]; ok: bool
   const cells: HorarioCell[] = [];
   for (const [key, cellWords] of buckets) {
     const lines = groupRows(cellWords);
-    const kept = lines.length >= 2 ? lines.slice(0, -1) : lines;
+    const kept = isProfessorLine(lines) ? lines.slice(0, -1) : lines;
     const nome = kept.flat().map((w) => w.text).join(' ').trim();
     if (!/\p{L}{2}/u.test(nome)) continue;
     const [day, slot] = key.split(':');
