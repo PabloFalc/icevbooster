@@ -217,6 +217,9 @@ export function importNotas(rows: NotasRow[], printDate: Iso): void {
 
 export function setComposite(key: string, c: Composite): void {
   update((s) => {
+    const i0 = key.lastIndexOf(':');
+    const owner = i0 > 0 ? key.slice(0, i0) : key;
+    if (key !== 'livre' && !s.subjects.some((x) => x.id === owner)) return s;
     const next: AppState = { ...s, composites: { ...s.composites, [key]: c } };
     const i = key.lastIndexOf(':');
     const slot = key.slice(i + 1);
@@ -226,6 +229,16 @@ export function setComposite(key: string, c: Composite): void {
       next.grades = { ...s.grades, [id]: { ...g, [slot]: compositeToSlot(c) } };
     }
     return next;
+  });
+}
+
+/** Unlinks a composite: the grade slot keeps its last values but is editable in Notas again. */
+export function removeComposite(key: string): void {
+  update((s) => {
+    if (!(key in s.composites)) return s;
+    const composites = { ...s.composites };
+    delete composites[key];
+    return { ...s, composites };
   });
 }
 

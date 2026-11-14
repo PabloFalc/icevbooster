@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   importFaltas, importHistorico, importHorario, importNotas, loadState, resetForTests, saveState, clearState,
-  setComposite, state, plan, outlooks, STORAGE_KEY, updateSubject, setSchedule, setSimulado, setFaltasPrintDate, emptySchedule,
+  setComposite, removeComposite, state, plan, outlooks, STORAGE_KEY, updateSubject, setSchedule, setSimulado, setFaltasPrintDate, emptySchedule,
   setNoClass, setExtraDay, addNoClassDays, setGradeSlot,
 } from './store';
 
@@ -83,6 +83,33 @@ describe('importNotas / setComposite', () => {
     setComposite('livre', { mode: 'pontos', parts: [] });
     expect(state.value.composites['livre']).toBeDefined();
     expect(state.value.grades).toEqual({});
+  });
+});
+
+describe('removeComposite / setComposite guards', () => {
+  const c = { mode: 'pontos' as const, parts: [{ nome: 'a', max: 10, tirei: 4 }] };
+  it('removeComposite deletes the composite and keeps the slot values', () => {
+    importNotas([nota('Cálculo', 7.5)], '2026-11-14');
+    setComposite('calculo:p1', c);
+    removeComposite('calculo:p1');
+    expect(state.value.composites['calculo:p1']).toBeUndefined();
+    expect(state.value.grades['calculo'].p1).toMatchObject({ state: 'completa', value: 4 });
+    // editable again: a re-import now overwrites the slot
+    importNotas([nota('Cálculo', 8)], '2026-11-15');
+    expect(state.value.grades['calculo'].p1.value).toBe(8);
+  });
+  it('removeComposite on a missing key is a no-op', () => {
+    const before = state.value;
+    removeComposite('nada:p1');
+    expect(state.value).toBe(before);
+  });
+  it('setComposite ignores keys of unknown subjects but accepts livre', () => {
+    setComposite('nada:p2', c);
+    setComposite('qualquer', c);
+    expect(state.value.composites).toEqual({});
+    expect(state.value.grades).toEqual({});
+    setComposite('livre', c);
+    expect(state.value.composites['livre']).toEqual(c);
   });
 });
 

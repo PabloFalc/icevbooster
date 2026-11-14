@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addDays, weekdayOf, formatBr, formatNum, todayIso, parseDecimal } from './dates';
+import { addDays, weekdayOf, formatBr, formatNum, formatNeeded, todayIso, parseDecimal } from './dates';
 
 describe('dates', () => {
   it('weekdayOf', () => {
@@ -16,6 +16,15 @@ describe('dates', () => {
   it('formatNum', () => {
     expect(formatNum(7.15)).toBe('7,15');
     expect(formatNum(7, 1)).toBe('7,0');
+  });
+  it('formatNeeded never rounds in the student favor', () => {
+    expect(formatNeeded(10 / 3)).toBe('3,34');
+    expect(formatNeeded(4.3)).toBe('4,30');
+    expect(formatNeeded(8.6 / 2)).toBe('4,30');
+    expect(formatNeeded(5.551)).toBe('5,56');
+    expect(formatNeeded(0)).toBe('0,00');
+    expect(formatNeeded(-1)).toBe('0,00');
+    expect(formatNeeded(Number.NaN)).toBe('—');
   });
   it('todayIso is ISO shaped', () => {
     expect(todayIso()).toMatch(/^\d{4}-\d{2}-\d{2}$/);

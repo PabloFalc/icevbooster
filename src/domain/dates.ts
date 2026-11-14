@@ -27,6 +27,12 @@ export function formatNum(n: number, decimals = 2): string {
   return n.toFixed(decimals).replace('.', ',');
 }
 
+/** A needed amount: ceiled to 2 decimals (1e-9 tolerance for float noise), never rounded in the student's favor. */
+export function formatNeeded(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  return formatNum(Math.max(0, Math.ceil(n * 100 - 1e-9) / 100));
+}
+
 /** Parses a typed number, accepting a comma decimal ('7,5' → 7.5); null when empty or not a finite number. */
 export function parseDecimal(s: string): number | null {
   const t = s.trim().replace(',', '.');
