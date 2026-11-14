@@ -9,7 +9,7 @@ import { clampGrade, gradeOutlook } from '../domain/grades';
 import type { Outlook } from '../domain/grades';
 import { planAll } from '../domain/maxPlan';
 import type { OverallPlan, PlanError } from '../domain/maxPlan';
-import { matchSubjects, namesMatch, normalizeName } from '../domain/nameMatch';
+import { matchIndices, matchSubjects, normalizeName } from '../domain/nameMatch';
 import type { CalendarOverrides, GradeSlot, Iso, Schedule, Subject, SubjectGrades, Weekday } from '../domain/types';
 import type { FaltasRow } from '../ocr/parseFaltas';
 import type { HistoricoRow } from '../ocr/parseHistorico';
@@ -132,15 +132,22 @@ function freshId(nome: string, taken: Set<string>): string {
 
 const finiteOrNull = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) ? n : null);
 
-function upsert(subjects: Subject[], taken: Set<string>, nome: string): Subject {
-  let sub = subjects.find((x) => namesMatch(x.nome, nome));
-  if (!sub) {
+/**
+ * The subject of each imported row (by position): exact names first, then fuzzy, never two rows on
+ * one subject; rows without a match create a subject (`extra` sets its initial fields).
+ */
+function upsertAll(subjects: Subject[], names: string[], extra: Partial<Subject> = {}): Subject[] {
+  const taken = new Set(subjects.map((x) => x.id));
+  const ids = matchIndices(subjects, names);
+  return names.map((nome, i) => {
+    const hit = ids[i] === null ? undefined : subjects.find((x) => x.id === ids[i]);
+    if (hit) return hit;
     const id = freshId(nome, taken);
     taken.add(id);
-    sub = { id, nome, faltas: 0, pendentes: 0, percentual: null, ch: null, chSource: null };
+    const sub: Subject = { id, nome, faltas: 0, pendentes: 0, percentual: null, ch: null, chSource: null, ...extra };
     subjects.push(sub);
-  }
-  return sub;
+    return sub;
+  });
 }
 
 // ---------- imports ----------
@@ -148,9 +155,9 @@ function upsert(subjects: Subject[], taken: Set<string>, nome: string): Subject 
 export function importFaltas(rows: FaltasRow[], printDate: Iso): void {
   update((s) => {
     const subjects = s.subjects.map((x) => ({ ...x }));
-    const taken = new Set(subjects.map((x) => x.id));
-    for (const r of rows) {
-      const sub = upsert(subjects, taken, r.nome);
+    const subs = upsertAll(subjects, rows.map((r) => r.nome));
+    rows.forEach((r, i) => {
+      const sub = subs[i];
       const f = finiteOrNull(r.faltas);
       if (f === null) sub.conferir = true;
       else { sub.faltas = f; delete sub.conferir; }
@@ -159,7 +166,7 @@ export function importFaltas(rows: FaltasRow[], printDate: Iso): void {
       if (sub.chSource !== 'manual') {
         Object.assign(sub, resolveCh(sub, sub.chSource === 'historico' && sub.ch !== null ? sub.ch : undefined));
       }
-    }
+    });
     return { ...s, subjects, faltasPrintDate: printDate };
   });
 }
@@ -167,14 +174,14 @@ export function importFaltas(rows: FaltasRow[], printDate: Iso): void {
 export function importHistorico(rows: HistoricoRow[]): void {
   update((s) => {
     const subjects = s.subjects.map((x) => ({ ...x }));
-    for (const r of rows) {
-      const ch = finiteOrNull(r.ch);
-      if (ch === null || ch <= 0) continue;
-      const sub = subjects.find((x) => namesMatch(x.nome, r.nome));
-      if (!sub || sub.chSource === 'manual') continue;
-      sub.ch = ch;
+    const usable = rows.filter((r) => { const ch = finiteOrNull(r.ch); return ch !== null && ch > 0; });
+    const ids = matchIndices(subjects, usable.map((r) => r.nome));
+    usable.forEach((r, i) => {
+      const sub = subjects.find((x) => x.id === ids[i]);
+      if (!sub || sub.chSource === 'manual') return;
+      sub.ch = r.ch;
       sub.chSource = 'historico';
-    }
+    });
     return { ...s, subjects };
   });
 }
@@ -201,16 +208,17 @@ const emptyGrades = (): SubjectGrades => ({
 export function importNotas(rows: NotasRow[], printDate: Iso): void {
   update((s) => {
     const subjects = s.subjects.map((x) => ({ ...x }));
-    const taken = new Set(subjects.map((x) => x.id));
+    // A subject first seen in the notas print has unknown faltas: excluded from the plan until checked.
+    const subs = upsertAll(subjects, rows.map((r) => r.nome), { conferir: true });
     const grades = { ...s.grades };
-    for (const r of rows) {
-      const sub = upsert(subjects, taken, r.nome);
+    rows.forEach((r, i) => {
+      const sub = subs[i];
       const g = { ...(grades[sub.id] ?? emptyGrades()) };
       if (!s.composites[`${sub.id}:p1`]) g.p1 = slotFrom(r.p1);
       if (!s.composites[`${sub.id}:p2`]) g.p2 = slotFrom(r.p2);
       g.p3 = slotFrom(r.p3);
       grades[sub.id] = g;
-    }
+    });
     return { ...s, subjects, grades, notasPrintDate: printDate };
   });
 }

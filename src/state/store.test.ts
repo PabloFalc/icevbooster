@@ -51,6 +51,30 @@ describe('importFaltas / importHistorico', () => {
   });
 });
 
+describe('one import never merges two subjects', () => {
+  it('faltas rows match exact names first and each subject at most once', () => {
+    importFaltas([{ nome: 'Banco de Dados', faltas: 1, percentual: null }, { nome: 'Programação', faltas: 2, percentual: null }], '2026-11-01');
+    importFaltas([
+      { nome: 'Banco de Dados II', faltas: 3, percentual: null }, { nome: 'Banco de Dados', faltas: 4, percentual: null },
+      { nome: 'Programação Web', faltas: 5, percentual: null }, { nome: 'Programação', faltas: 6, percentual: null },
+    ], '2026-11-14');
+    expect(state.value.subjects.map((s) => [s.nome, s.faltas])).toEqual([
+      ['Banco de Dados', 4], ['Programação', 6], ['Banco de Dados II', 3], ['Programação Web', 5],
+    ]);
+  });
+  it('notas rows of one import never share a subject', () => {
+    importNotas([nota('Programação Web', 5), nota('Programação', 7)], '2026-11-14');
+    expect(state.value.subjects.map((s) => s.nome)).toEqual(['Programação Web', 'Programação']);
+    expect(state.value.grades['programacao-web'].p1.value).toBe(5);
+    expect(state.value.grades['programacao'].p1.value).toBe(7);
+  });
+  it('historico prefers the exact name', () => {
+    importFaltas([{ nome: 'Programação Web', faltas: 0, percentual: null }], '2026-11-14');
+    importHistorico([{ nome: 'Programação Web', faltas: 0, ch: 72 }, { nome: 'Programação', faltas: 0, ch: 36 }]);
+    expect(sub('Programação Web')).toMatchObject({ ch: 72, chSource: 'historico' });
+  });
+});
+
 describe('importHorario', () => {
   it('fills matching cells and drops unmatched', () => {
     importFaltas([{ nome: 'Marketing Digital', faltas: 0, percentual: null }], '2026-11-14');
@@ -63,7 +87,9 @@ describe('importHorario', () => {
 describe('importNotas / setComposite', () => {
   it('creates missing subjects, maps states, protects composite slots', () => {
     importNotas([nota('Cálculo', 7.5, null, 9)], '2026-11-14');
-    expect(sub('Cálculo')).toMatchObject({ faltas: 0, ch: null });
+    expect(sub('Cálculo')).toMatchObject({ faltas: 0, ch: null, conferir: true }); // faltas unknown until the faltas print
+    updateSubject('calculo', { faltas: 2 });
+    expect(sub('Cálculo')?.conferir).toBeUndefined();
     expect(state.value.grades['calculo']).toEqual({
       p1: { state: 'completa', value: 7.5 }, p2: { state: 'nao_feita', value: null }, p3: { state: 'completa', value: 9 },
     });

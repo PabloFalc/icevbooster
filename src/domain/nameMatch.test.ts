@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeName, namesMatch, matchSubjects } from './nameMatch';
+import { normalizeName, namesMatch, matchSubjects, matchIndices } from './nameMatch';
 
 describe('normalizeName', () => {
   it('lowercases, strips accents and punctuation, expands proj', () => {
@@ -45,5 +45,18 @@ describe('matchSubjects', () => {
       'Marketing Digital': 'c',
       'Física': null,
     });
+  });
+});
+
+describe('exact names first', () => {
+  const base = [{ id: 'bd', nome: 'Banco de Dados' }, { id: 'bd2', nome: 'Banco de Dados II' }, { id: 'p', nome: 'Programação' }, { id: 'pw', nome: 'Programação Web' }];
+  it('matchSubjects prefers an exact name over an earlier fuzzy one', () => {
+    expect(matchSubjects(base, ['Banco de Dados II', 'Programação Web', 'Banco de Dados', 'Programação'])).toEqual({
+      'Banco de Dados II': 'bd2', 'Programação Web': 'pw', 'Banco de Dados': 'bd', 'Programação': 'p',
+    });
+  });
+  it('matchIndices never maps two names onto one subject', () => {
+    expect(matchIndices([{ id: 'p', nome: 'Programação' }], ['Programação Web', 'Programação'])).toEqual([null, 'p']);
+    expect(matchIndices([{ id: 'bd', nome: 'Banco de Dados' }], ['Banco de Dados', 'Banco de Dados'])).toEqual(['bd', null]);
   });
 });

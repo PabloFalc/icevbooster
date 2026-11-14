@@ -51,16 +51,27 @@ export function namesMatch(a: string, b: string): boolean {
   return prefixSubset(A.words, B.words) || prefixSubset(B.words, A.words);
 }
 
+/**
+ * Matches each name (by position) to a base subject id: exact normalized names first, then fuzzy
+ * `namesMatch`. Each id is used at most once, so one import never merges two rows into one subject.
+ */
+export function matchIndices(base: { id: string; nome: string }[], names: string[]): (string | null)[] {
+  const taken = new Set<string>();
+  const out: (string | null)[] = names.map(() => null);
+  const pass = (same: (a: string, b: string) => boolean) => names.forEach((name, i) => {
+    if (out[i] !== null) return;
+    const hit = base.find((s) => !taken.has(s.id) && same(s.nome, name));
+    if (hit) { taken.add(hit.id); out[i] = hit.id; }
+  });
+  pass((a, b) => normalizeName(a) === normalizeName(b) && normalizeName(a) !== '');
+  pass(namesMatch);
+  return out;
+}
+
 export function matchSubjects(
   base: { id: string; nome: string }[],
   names: string[],
 ): Record<string, string | null> {
-  const taken = new Set<string>();
-  const result: Record<string, string | null> = {};
-  for (const name of names) {
-    const hit = base.find((s) => !taken.has(s.id) && namesMatch(s.nome, name));
-    if (hit) taken.add(hit.id);
-    result[name] = hit ? hit.id : null;
-  }
-  return result;
+  const ids = matchIndices(base, names);
+  return Object.fromEntries(names.map((n, i) => [n, ids[i]]));
 }
