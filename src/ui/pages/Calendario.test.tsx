@@ -111,4 +111,32 @@ describe('Calendário page', () => {
     fireEvent.click(screen.getByText('Importar dias marcados'));
     expect(state.value.overrides.noClass).toEqual({ '2026-11-25': 'Recesso escolar' });
   });
+
+  it('does not invent saldo observations without a valid plan or without CH', () => {
+    state.value = { ...state.value, subjects: base };
+    setSchedule(schedule); // no simulado: no plan
+    render(<Calendario />);
+    fireEvent.click(cell(18));
+    expect(screen.queryByText(/vá a esta aula/)).toBeNull();
+    expect(screen.getByText('Pesquisa Operacional: sem cálculo — confira as faltas/carga horária na aba Faltas.')).toBeTruthy();
+    cleanup();
+    resetForTests();
+    state.value = { ...state.value, subjects: [...base.filter((b) => b.id !== 'po'), sub('po', 'Pesquisa Operacional', null, 0)] };
+    setSchedule(schedule);
+    setSimulado('2026-12-10');
+    render(<Calendario />);
+    fireEvent.click(cell(18));
+    expect(screen.queryByText(/vá a esta aula/)).toBeNull();
+    expect(screen.getByText(/Pesquisa Operacional: sem cálculo/)).toBeTruthy();
+    expect(screen.queryByText(/aulas · Pesquisa Operacional/)).toBeNull(); // no saldo tile without a saldo
+  });
+
+  it('shows the year of PDF candidates', async () => {
+    seed();
+    pdf.pdfToText.mockResolvedValue('x');
+    pdf.extractCalendarCandidates.mockReturnValue([{ date: '2026-11-25', label: 'Recesso', kind: 'sem_aula' }]);
+    render(<Calendario />);
+    fireEvent.change(screen.getByLabelText(/Enviar PDF/), { target: { files: [new File(['x'], 'c.pdf', { type: 'application/pdf' })] } });
+    await waitFor(() => screen.getByText('25/11/2026'));
+  });
 });

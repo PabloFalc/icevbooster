@@ -11,6 +11,7 @@ const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sext
 const SLOT_TIMES = ['18:20', '20:20'];
 const WEEKDAY_OPTIONS: [Weekday, string][] = [[1, 'Segunda'], [2, 'Terça'], [3, 'Quarta'], [4, 'Quinta'], [5, 'Sexta']];
 
+const formatBrYear = (d: Iso) => `${formatBr(d)}/${d.slice(0, 4)}`;
 const firstOf = (d: Iso): Iso => `${d.slice(0, 7)}-01`;
 
 function shiftMonth(month: Iso, delta: number): Iso {
@@ -44,10 +45,20 @@ function Detail({ date }: { date: Iso }) {
     const mine = rows.filter((r) => r.id === id);
     const saldo = ctx.saldo[id];
     if (saldo === 0) obs.push(`${name(id)} está sem saldo: qualquer falta reprova.`);
-    else if (mine[0].status === 'normal') {
+    else if (typeof saldo === 'number' && saldo > 0 && mine[0].status === 'normal') {
       obs.push(`${name(id)}: vá a esta aula — o saldo é guardado para as últimas aulas antes do simulado.`);
     }
     if (mine.length === 2) obs.push(`${name(id)} tem 2 aulas neste dia: falte o dia todo ou nenhum.`);
+  }
+
+  // Scheduled subjects the plan can't compute (conferir, no CH, no valid plan): say so instead of guessing.
+  if (st.kind !== 'holiday' && st.kind !== 'weekend' && st.kind !== 'simulado' && st.kind !== 'after') {
+    const wd = (overrides.extraDays[date] ?? weekdayOf(date)) as Weekday;
+    for (const id of new Set(state.value.schedule[wd] ?? [])) {
+      if (id !== null && byId.has(id) && !(id in ctx.saldo)) {
+        obs.push(`${name(id)}: sem cálculo — confira as faltas/carga horária na aba Faltas.`);
+      }
+    }
   }
 
   const sub = st.kind === 'holiday' ? (st.label ?? 'Sem aula')
@@ -77,7 +88,7 @@ function Detail({ date }: { date: Iso }) {
           <div class="stat">
             {ids.map((id) => (
               <div key={id}>
-                <b class={ctx.saldo[id] === 0 ? 'bad' : undefined}>{ctx.saldo[id]}</b>
+                <b class={ctx.saldo[id] === 0 ? 'bad' : undefined}>{typeof ctx.saldo[id] === 'number' ? ctx.saldo[id] : '—'}</b>
                 <span>{ctx.saldo[id] === 1 ? 'aula' : 'aulas'} · {name(id)}</span>
               </div>
             ))}
@@ -180,7 +191,7 @@ function PdfImport() {
                   <li key={c.date}>
                     <label>
                       <input type="checkbox" checked={checked.has(c.date)} onChange={() => toggle(c.date)} />
-                      <span><b>{formatBr(c.date)}</b> {c.label}</span>
+                      <span><b>{formatBrYear(c.date)}</b> {c.label}</span>
                     </label>
                   </li>
                 ))}
