@@ -2,14 +2,18 @@ import { useState } from 'preact/hooks';
 
 type Phase = 'idle' | 'reading' | 'error';
 
+/** A failure whose message is shown to the student instead of the default failure copy. */
+export class UploadError extends Error {}
+
 /**
  * Print picker. The file is handed to `onFile` (OCR runs locally in the browser); it is never sent anywhere.
- * While `onFile` runs the card shows "Lendo o print…"; a rejection shows the failure copy.
+ * While `onFile` runs the card shows "Lendo o print…"; a rejection shows the failure copy (an UploadError shows its own message).
  */
 export function Upload({ label, accept, onFile, hint = 'Tire o print com a tabela completa visível — todas as linhas e colunas.', errorText = 'Não consegui ler esse print. Tente outro print ou preencha manualmente.' }: {
   label: string; accept: string; onFile(f: File): Promise<void>; hint?: string; errorText?: string;
 }) {
   const [phase, setPhase] = useState<Phase>('idle');
+  const [message, setMessage] = useState(errorText);
 
   async function onChange(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
@@ -20,7 +24,8 @@ export function Upload({ label, accept, onFile, hint = 'Tire o print com a tabel
     try {
       await onFile(file);
       setPhase('idle');
-    } catch {
+    } catch (err) {
+      setMessage(err instanceof UploadError ? err.message : errorText);
       setPhase('error');
     }
   }
@@ -38,7 +43,7 @@ export function Upload({ label, accept, onFile, hint = 'Tire o print com a tabel
           Lendo o print…
         </p>
       )}
-      {phase === 'error' && <p class="upload-error" role="alert">{errorText}</p>}
+      {phase === 'error' && <p class="upload-error" role="alert">{message}</p>}
     </div>
   );
 }

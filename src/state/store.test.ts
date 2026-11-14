@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   importFaltas, importHistorico, importHorario, importNotas, loadState, resetForTests, saveState, clearState,
   setComposite, removeComposite, state, plan, outlooks, STORAGE_KEY, updateSubject, setSchedule, setSimulado, setFaltasPrintDate, emptySchedule,
-  setNoClass, setExtraDay, addNoClassDays, setGradeSlot,
+  setNoClass, setExtraDay, addNoClassDays, setGradeSlot, horarioUnmatched, scheduleOpen,
 } from './store';
 
 const fakeStorage = (): Storage => {
@@ -81,6 +81,26 @@ describe('importHorario', () => {
     importHorario([{ weekday: 1, slot: 0, nome: 'Marketing Digital' }, { weekday: 2, slot: 1, nome: 'Desconhecida' }]);
     expect(state.value.schedule[1]).toEqual(['marketing-digital', null]);
     expect(state.value.schedule[2]).toEqual([null, null]);
+  });
+  it('returns unmatched names, opens the grid and keeps manual slots the print had no cell for', () => {
+    importFaltas([{ nome: 'Marketing Digital', faltas: 0, percentual: null }], '2026-11-14');
+    setSchedule({ ...emptySchedule(), 2: [null, 'marketing-digital'], 3: ['marketing-digital', null] });
+    const unmatched = importHorario([{ weekday: 1, slot: 0, nome: 'Marketing Digital' }, { weekday: 2, slot: 1, nome: 'Eletiva VI' }]);
+    expect(unmatched).toEqual(['Eletiva VI']);
+    expect(horarioUnmatched.value).toEqual(['Eletiva VI']);
+    expect(scheduleOpen.value).toBe(true);
+    expect(state.value.schedule[1]).toEqual(['marketing-digital', null]);
+    expect(state.value.schedule[2]).toEqual([null, null]);
+    expect(state.value.schedule[3]).toEqual(['marketing-digital', null]);
+  });
+  it('throws and keeps the schedule without subjects or without any match', () => {
+    expect(() => importHorario([{ weekday: 1, slot: 0, nome: 'Marketing Digital' }])).toThrow();
+    importFaltas([{ nome: 'Marketing Digital', faltas: 0, percentual: null }], '2026-11-14');
+    setSchedule({ ...emptySchedule(), 3: ['marketing-digital', null] });
+    expect(() => importHorario([{ weekday: 1, slot: 0, nome: 'Física' }])).toThrow();
+    expect(state.value.schedule[3]).toEqual(['marketing-digital', null]);
+    expect(state.value.schedule[1]).toEqual([null, null]);
+    expect(horarioUnmatched.value).toEqual([]);
   });
 });
 

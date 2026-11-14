@@ -1,9 +1,9 @@
-import { clearState, defaultState, state } from '../state/store';
+import { clearState, resetState } from '../state/store';
 
 function eraseData(): void {
   if (!window.confirm('Apagar todos os dados salvos neste aparelho? Isso não pode ser desfeito.')) return;
   // Reset the signal first: its persistence effect rewrites defaults, then clearState removes the key.
-  state.value = defaultState();
+  resetState();
   clearState(localStorage);
 }
 

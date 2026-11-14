@@ -114,9 +114,21 @@ effect(() => {
   if (s) saveState(s, value);
 });
 
-/** Test helper: back to the default state (the effect rewrites storage). */
-export function resetForTests(): void {
+/** Horário cell names the last horário import could not match to a subject (session only, not persisted). */
+export const horarioUnmatched = signal<string[]>([]);
+/** Whether the Faltas schedule grid is expanded (session only; opened by a horário import or "Preencher manualmente"). */
+export const scheduleOpen = signal(false);
+
+/** Back to the default state, including the session-only signals (the effect rewrites storage). */
+export function resetState(): void {
   state.value = defaultState();
+  horarioUnmatched.value = [];
+  scheduleOpen.value = false;
+}
+
+/** Test helper: back to the default state. */
+export function resetForTests(): void {
+  resetState();
 }
 
 const update = (fn: (s: AppState) => AppState): void => { state.value = fn(state.value); };
@@ -186,16 +198,26 @@ export function importHistorico(rows: HistoricoRow[]): void {
   });
 }
 
-export function importHorario(cells: HorarioCell[]): void {
-  update((s) => {
-    const schedule = emptySchedule();
-    const map = matchSubjects(s.subjects, [...new Set(cells.map((c) => c.nome))]);
-    for (const c of cells) {
-      const id = map[c.nome];
-      if (id && WEEKDAYS.includes(c.weekday) && (c.slot === 0 || c.slot === 1)) schedule[c.weekday][c.slot] = id;
-    }
-    return { ...s, schedule };
-  });
+/**
+ * Builds the schedule from the horário print: every slot the print has a cell for gets its matched
+ * subject (or none); slots without any cell keep their manual entry. Returns the unmatched cell names.
+ * Throws (schedule untouched) when there are no subjects yet or no cell matches any subject.
+ */
+export function importHorario(cells: HorarioCell[]): string[] {
+  const s = state.value;
+  if (s.subjects.length === 0) throw new Error('sem matérias');
+  const valid = cells.filter((c) => WEEKDAYS.includes(c.weekday) && (c.slot === 0 || c.slot === 1));
+  const names = [...new Set(valid.map((c) => c.nome))];
+  const map = matchSubjects(s.subjects, names);
+  if (!names.some((n) => map[n])) throw new Error('nenhuma correspondência');
+  const schedule = Object.fromEntries(WEEKDAYS.map((d) => [d, [...s.schedule[d]]])) as Schedule;
+  for (const c of valid) schedule[c.weekday][c.slot] = null;
+  for (const c of valid) if (map[c.nome]) schedule[c.weekday][c.slot] = map[c.nome];
+  state.value = { ...s, schedule };
+  const unmatched = names.filter((n) => !map[n]);
+  horarioUnmatched.value = unmatched;
+  scheduleOpen.value = true;
+  return unmatched;
 }
 
 const slotFrom = (n: number | null): GradeSlot =>

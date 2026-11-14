@@ -5,10 +5,13 @@ import { formatBr, formatNum, parseDecimal, todayIso } from '../../domain/dates'
 import type { SubjectPlan } from '../../domain/maxPlan';
 import type { Schedule, Subject, Weekday } from '../../domain/types';
 import {
-  importFaltas, importHistorico, importHorario, plan, setFaltasPrintDate, setSchedule, setSimulado, state, updateSubject,
+  horarioUnmatched, importFaltas, importHistorico, importHorario, plan, scheduleOpen, setFaltasPrintDate, setSchedule, setSimulado,
+  state, updateSubject,
 } from '../../state/store';
 import { MONTHS, MonthGrid } from '../MonthGrid';
-import { Upload } from '../Upload';
+import { Upload, UploadError } from '../Upload';
+
+const NEED_FALTAS = 'Envie primeiro o print de faltas.';
 
 const WEEKDAYS: [Weekday, string][] = [[1, 'Seg'], [2, 'Ter'], [3, 'Qua'], [4, 'Qui'], [5, 'Sex']];
 const SLOTS = ['18:20', '20:20'];
@@ -174,6 +177,7 @@ function Warnings() {
   const msgs: string[] = subjects.filter((s) => s.conferir).map((s) => `Não consegui ler as faltas de ${s.nome} — confira e digite o valor.`);
   if (subjects.length && scheduled.size === 0) msgs.push('Envie o print do horário ou preencha manualmente.');
   else for (const s of subjects) if (!scheduled.has(s.id)) msgs.push(`${s.nome} não aparece no horário — preencha manualmente.`);
+  for (const n of horarioUnmatched.value) msgs.push(`${n} (horário) não corresponde a nenhuma matéria do print de faltas`);
   if (!msgs.length) return null;
   return <ul class="warnings">{msgs.map((m) => <li key={m}>{m}</li>)}</ul>;
 }
@@ -211,11 +215,21 @@ function ScheduleGrid() {
     next[wd][slot] = id === '' ? null : id;
     setSchedule(next);
   };
+  const open = scheduleOpen.value;
+  const filled = scheduledIds(schedule).size > 0;
+  if (!open && !filled) return null;
   return (
     <section class="card glass">
-      <h3>Horário</h3>
-      {subjects.length === 0 && <p class="empty-note">Envie primeiro o print de faltas.</p>}
-      <div class="sched">
+      <h3>
+        Horário{' '}
+        {filled && (
+          <button type="button" class="link-btn" aria-expanded={open} onClick={() => { scheduleOpen.value = !open; }}>
+            Conferir horário
+          </button>
+        )}
+      </h3>
+      {open && subjects.length === 0 && <p class="empty-note">{NEED_FALTAS}</p>}
+      {open && <div class="sched">
         <div />
         {SLOTS.map((h) => <div key={h} class="sched-h">{h}</div>)}
         {WEEKDAYS.map(([wd, dia]) => [
@@ -228,7 +242,7 @@ function ScheduleGrid() {
             </select>
           )),
         ])}
-      </div>
+      </div>}
     </section>
   );
 }
@@ -236,7 +250,6 @@ function ScheduleGrid() {
 // ---------- page ----------
 
 export function Faltas() {
-  const [manual, setManual] = useState(false);
   const { faltasPrintDate, simulado } = state.value;
   const today = todayIso();
 
@@ -248,6 +261,7 @@ export function Faltas() {
   }
 
   async function onHistorico(f: File) {
+    if (state.value.subjects.length === 0) throw new UploadError(NEED_FALTAS);
     const [{ runOcr }, { parseHistorico }] = await Promise.all([import('../../ocr/ocr'), import('../../ocr/parseHistorico')]);
     const rows = parseHistorico(await runOcr(f));
     if (rows.length === 0) throw new Error('nenhuma linha');
@@ -255,12 +269,11 @@ export function Faltas() {
   }
 
   async function onHorario(f: File) {
+    if (state.value.subjects.length === 0) throw new UploadError(NEED_FALTAS);
     const [{ runOcr, HORARIO_OCR }, { parseHorario }] = await Promise.all([import('../../ocr/ocr'), import('../../ocr/parseHorario')]);
-    const { cells, ok } = parseHorario(await runOcr(f, HORARIO_OCR));
-    if (cells.length) importHorario(cells);
-    const scheduled = scheduledIds(state.value.schedule);
-    if (!ok || state.value.subjects.some((s) => !scheduled.has(s.id))) setManual(true);
+    const { cells } = parseHorario(await runOcr(f, HORARIO_OCR));
     if (cells.length === 0) throw new Error('nenhuma aula');
+    importHorario(cells); // throws when no cell matches; opens the grid so the student can check it
   }
 
   return (
@@ -268,7 +281,7 @@ export function Faltas() {
       <Hero />
       <div class="col main-col">
         <SubjectsTable />
-        {manual && <ScheduleGrid />}
+        <ScheduleGrid />
       </div>
       <div class="col side-col">
         <section class="card glass prints">
@@ -284,7 +297,7 @@ export function Faltas() {
           {faltasPrintDate && faltasPrintDate !== today && <p class="warn">Confira se o portal já lançou todas as faltas.</p>}
           <Upload label="Print do histórico (opcional)" accept="image/*" onFile={onHistorico} />
           <Upload label="Print do horário" accept="image/*" onFile={onHorario} />
-          <button type="button" class="link-btn" onClick={() => setManual(true)}>Preencher manualmente</button>
+          <button type="button" class="link-btn" onClick={() => { scheduleOpen.value = true; }}>Preencher manualmente</button>
           <label class="field">
             <span>Data do simulado</span>
             <input type="date" aria-label="Data do simulado" value={simulado ?? ''}

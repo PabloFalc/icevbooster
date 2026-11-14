@@ -6,9 +6,10 @@ import { Faltas } from './Faltas';
 
 const ocr = vi.hoisted(() => ({ runOcr: vi.fn(), HORARIO_OCR: { upscale: 3, sparse: true } }));
 vi.mock('../../ocr/ocr', () => ocr);
-const parsers = vi.hoisted(() => ({ parseFaltas: vi.fn(), parseHorario: vi.fn() }));
+const parsers = vi.hoisted(() => ({ parseFaltas: vi.fn(), parseHorario: vi.fn(), parseHistorico: vi.fn() }));
 vi.mock('../../ocr/parseFaltas', () => ({ parseFaltas: parsers.parseFaltas }));
 vi.mock('../../ocr/parseHorario', () => ({ parseHorario: parsers.parseHorario }));
+vi.mock('../../ocr/parseHistorico', () => ({ parseHistorico: parsers.parseHistorico }));
 
 const sub = (id: string, nome: string, ch: number | null, faltas: number, extra: Partial<Subject> = {}): Subject =>
   ({ id, nome, faltas, pendentes: 0, percentual: null, ch, chSource: ch === null ? null : 'manual', ...extra });
@@ -174,6 +175,49 @@ describe('Faltas page', () => {
     expect(state.value.schedule[5]).toEqual(['marketing', null]);
     fireEvent.change(screen.getByLabelText('Ter 18:20'), { target: { value: 'eletiva' } });
     expect(state.value.schedule[2]).toEqual(['eletiva', null]);
+  });
+
+  it('horário import warns about unmatched cells and the grid stays visible after navigation', async () => {
+    seed(base, '2026-12-10', { 1: [null, null], 2: [null, null], 3: [null, null], 4: [null, null], 5: [null, null] });
+    ocr.runOcr.mockResolvedValue([]);
+    parsers.parseHorario.mockReturnValue({ cells: [{ weekday: 5, slot: 0, nome: 'Marketing Digital' }, { weekday: 1, slot: 0, nome: 'Eletiva VI' }], ok: true });
+    render(<Faltas />);
+    fireEvent.change(screen.getByLabelText(/Print do horário/), { target: { files: [new File(['x'], 'h.png', { type: 'image/png' })] } });
+    await screen.findByText('Eletiva VI (horário) não corresponde a nenhuma matéria do print de faltas');
+    expect((screen.getByLabelText('Sex 18:20') as HTMLSelectElement).value).toBe('marketing');
+    cleanup();
+    render(<Faltas />); // back from another tab
+    expect(screen.getByLabelText('Sex 18:20')).toBeTruthy();
+    expect(screen.getByText('Eletiva VI (horário) não corresponde a nenhuma matéria do print de faltas')).toBeTruthy();
+  });
+
+  it('a non-empty schedule is behind a "Conferir horário" toggle', () => {
+    seed();
+    render(<Faltas />);
+    expect(screen.queryByLabelText('Seg 18:20')).toBeNull();
+    const toggle = screen.getByRole('button', { name: 'Conferir horário' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(screen.getByLabelText('Seg 18:20')).toBeTruthy();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('horário or histórico before the faltas print asks for it first', async () => {
+    render(<Faltas />);
+    fireEvent.change(screen.getByLabelText(/Print do horário/), { target: { files: [new File(['x'], 'h.png', { type: 'image/png' })] } });
+    fireEvent.change(screen.getByLabelText(/Print do histórico/), { target: { files: [new File(['x'], 'h.png', { type: 'image/png' })] } });
+    await waitFor(() => expect(screen.getAllByText('Envie primeiro o print de faltas.').length).toBe(2));
+    expect(ocr.runOcr).not.toHaveBeenCalled();
+  });
+
+  it('a horário print with no matching subject fails and keeps the schedule', async () => {
+    seed();
+    ocr.runOcr.mockResolvedValue([]);
+    parsers.parseHorario.mockReturnValue({ cells: [{ weekday: 1, slot: 0, nome: 'Física' }], ok: true });
+    render(<Faltas />);
+    fireEvent.change(screen.getByLabelText(/Print do horário/), { target: { files: [new File(['x'], 'h.png', { type: 'image/png' })] } });
+    await screen.findByText('Não consegui ler esse print. Tente outro print ou preencha manualmente.');
+    expect(state.value.schedule).toEqual(schedule);
   });
 
   it('"Preencher manualmente" opens the grid', () => {
