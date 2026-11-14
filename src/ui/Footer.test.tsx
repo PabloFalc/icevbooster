@@ -29,7 +29,7 @@ describe('Footer', () => {
     expect(confirm).toHaveBeenCalledWith(MSG);
     expect(state.value).toEqual(defaultState());
     expect(localStorage.getItem(THEME_KEY)).toBe('dark');
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null')).toEqual(defaultState());
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it('does nothing when the user cancels', () => {
