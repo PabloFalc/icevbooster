@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { signal } from '@preact/signals';
 
 export type Theme = 'light' | 'dark';
 export const THEME_KEY = 'icevbooster:theme';
@@ -26,17 +26,20 @@ export function applyStoredTheme(): void {
   if (t) document.documentElement.setAttribute('data-theme', t);
 }
 
+/** Single source of truth shared by every ThemeToggle instance. */
+export const themeSignal = signal<Theme>(currentTheme());
+
+export function toggleTheme(): void {
+  const next: Theme = themeSignal.value === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem(THEME_KEY, next); } catch { /* storage unavailable */ }
+  themeSignal.value = next;
+}
+
 export function ThemeToggle({ class: cls = '' }: { class?: string }) {
-  const [theme, setTheme] = useState<Theme>(currentTheme);
-  const toggle = () => {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem(THEME_KEY, next); } catch { /* storage unavailable */ }
-    setTheme(next);
-  };
   return (
-    <button type="button" class={`theme ${cls}`.trim()} onClick={toggle} aria-label="Alternar tema">
-      {theme === 'dark' ? '☾ Escuro' : '☀ Claro'}
+    <button type="button" class={`theme ${cls}`.trim()} onClick={toggleTheme} aria-label="Alternar tema">
+      {themeSignal.value === 'dark' ? '☾ Escuro' : '☀ Claro'}
     </button>
   );
 }
