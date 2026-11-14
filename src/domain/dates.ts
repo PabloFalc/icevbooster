@@ -26,3 +26,11 @@ export function formatBr(d: Iso): string {
 export function formatNum(n: number, decimals = 2): string {
   return n.toFixed(decimals).replace('.', ',');
 }
+
+/** Parses a typed number, accepting a comma decimal ('7,5' → 7.5); null when empty or not a finite number. */
+export function parseDecimal(s: string): number | null {
+  const t = s.trim().replace(',', '.');
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}

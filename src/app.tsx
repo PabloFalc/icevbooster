@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { routeFromHash, type Route } from './router';
 import { Nav } from './ui/Nav';
 import { Footer } from './ui/Footer';
+import { Faltas } from './ui/pages/Faltas';
 
 const TITLES: Record<Route, string> = {
   faltas: 'Faltas',
@@ -22,6 +23,7 @@ export function App() {
       <Nav route={route} />
       <main class="page">
         <h1>{TITLES[route]}</h1>
+        {route === 'faltas' && <Faltas />}
       </main>
       <Footer />
     </div>

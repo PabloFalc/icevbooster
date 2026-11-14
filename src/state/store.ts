@@ -228,6 +228,46 @@ export function setComposite(key: string, c: Composite): void {
   });
 }
 
+// ---------- edits ----------
+
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Applies a typed edit to one subject. Numbers that are not finite (or negative; CH must be > 0)
+ * are dropped so NaN never reaches persisted state. Typing faltas clears the `conferir` flag.
+ */
+export function updateSubject(id: string, patch: Partial<Pick<Subject, 'faltas' | 'pendentes' | 'ch' | 'chSource'>>): void {
+  const clean: Partial<Subject> = {};
+  if (isNum(patch.faltas) && patch.faltas >= 0) clean.faltas = patch.faltas;
+  if (isNum(patch.pendentes) && patch.pendentes >= 0) clean.pendentes = patch.pendentes;
+  if (patch.ch === null || (isNum(patch.ch) && patch.ch > 0)) clean.ch = patch.ch;
+  if (patch.chSource !== undefined) clean.chSource = patch.chSource;
+  if (Object.keys(clean).length === 0) return;
+  update((s) => ({
+    ...s,
+    subjects: s.subjects.map((x) => {
+      if (x.id !== id) return x;
+      const next = { ...x, ...clean };
+      if (clean.faltas !== undefined) delete next.conferir;
+      return next;
+    }),
+  }));
+}
+
+export function setSchedule(schedule: Schedule): void {
+  update((s) => ({ ...s, schedule }));
+}
+
+export function setSimulado(d: Iso | null): void {
+  if (d !== null && !ISO.test(d)) return;
+  update((s) => ({ ...s, simulado: d }));
+}
+
+export function setFaltasPrintDate(d: Iso): void {
+  if (!ISO.test(d)) return;
+  update((s) => ({ ...s, faltasPrintDate: d }));
+}
+
 // ---------- derived ----------
 
 export const plan: ReadonlySignal<OverallPlan | PlanError> = computed(() => {

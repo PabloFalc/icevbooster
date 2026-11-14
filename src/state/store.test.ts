@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   importFaltas, importHistorico, importHorario, importNotas, loadState, resetForTests, saveState, clearState,
-  setComposite, state, plan, outlooks, STORAGE_KEY,
+  setComposite, state, plan, outlooks, STORAGE_KEY, updateSubject, setSchedule, setSimulado, setFaltasPrintDate, emptySchedule,
 } from './store';
 
 const fakeStorage = (): Storage => {
@@ -120,5 +120,42 @@ describe('persistence', () => {
   it('effect persists every change to localStorage', () => {
     importFaltas([{ nome: 'Gestão', faltas: 1, percentual: null }], '2026-11-14');
     expect(loadState(localStorage)).toEqual(state.value);
+  });
+});
+
+describe('mutation helpers', () => {
+  it('updateSubject applies valid fields and drops non-finite or negative numbers', () => {
+    importFaltas([{ nome: 'Gestão', faltas: 4, percentual: null }], '2026-11-14');
+    const id = state.value.subjects[0].id;
+    updateSubject(id, { faltas: NaN, pendentes: -1, ch: Infinity });
+    expect(state.value.subjects[0]).toMatchObject({ faltas: 4, pendentes: 0, ch: null });
+    updateSubject(id, { faltas: 7.5, pendentes: 2, ch: 72, chSource: 'manual' });
+    expect(state.value.subjects[0]).toMatchObject({ faltas: 7.5, pendentes: 2, ch: 72, chSource: 'manual' });
+    updateSubject(id, { ch: 0 });
+    expect(state.value.subjects[0].ch).toBe(72);
+  });
+  it('typing faltas clears conferir', () => {
+    importFaltas([{ nome: 'Gestão', faltas: null, percentual: null }], '2026-11-14');
+    const id = state.value.subjects[0].id;
+    updateSubject(id, { pendentes: 1 });
+    expect(state.value.subjects[0].conferir).toBe(true);
+    updateSubject(id, { faltas: 3 });
+    expect(state.value.subjects[0].conferir).toBeUndefined();
+  });
+  it('setSchedule, setSimulado and setFaltasPrintDate accept only valid values', () => {
+    const s = emptySchedule();
+    s[2] = ['x', null];
+    setSchedule(s);
+    expect(state.value.schedule[2]).toEqual(['x', null]);
+    setSimulado('2026-12-10');
+    expect(state.value.simulado).toBe('2026-12-10');
+    setSimulado('lixo');
+    expect(state.value.simulado).toBe('2026-12-10');
+    setSimulado(null);
+    expect(state.value.simulado).toBeNull();
+    setFaltasPrintDate('2026-11-10');
+    expect(state.value.faltasPrintDate).toBe('2026-11-10');
+    setFaltasPrintDate('');
+    expect(state.value.faltasPrintDate).toBe('2026-11-10');
   });
 });

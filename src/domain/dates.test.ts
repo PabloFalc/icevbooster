@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addDays, weekdayOf, formatBr, formatNum, todayIso } from './dates';
+import { addDays, weekdayOf, formatBr, formatNum, todayIso, parseDecimal } from './dates';
 
 describe('dates', () => {
   it('weekdayOf', () => {
@@ -19,5 +19,14 @@ describe('dates', () => {
   });
   it('todayIso is ISO shaped', () => {
     expect(todayIso()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+  it('parseDecimal accepts comma decimals and rejects non-finite input', () => {
+    expect(parseDecimal('7,5')).toBe(7.5);
+    expect(parseDecimal(' 12 ')).toBe(12);
+    expect(parseDecimal('8.25')).toBe(8.25);
+    expect(parseDecimal('')).toBeNull();
+    expect(parseDecimal('abc')).toBeNull();
+    expect(parseDecimal('1,2,3')).toBeNull();
+    expect(parseDecimal('Infinity')).toBeNull();
   });
 });
