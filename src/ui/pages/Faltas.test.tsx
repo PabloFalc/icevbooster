@@ -56,6 +56,10 @@ describe('Faltas page', () => {
     cleanup();
     render(<Faltas />);
     expect(screen.getByText('A data do simulado já passou')).toBeTruthy();
+    setSimulado('2026-11-16');
+    cleanup();
+    render(<Faltas />);
+    expect(screen.getByText('O simulado é hoje — não há mais aulas para planejar.')).toBeTruthy();
   });
 
   it('hero lists subjects left out of the plan with their reason, never as free days', () => {

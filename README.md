@@ -4,7 +4,7 @@ Ferramenta **não oficial** para estudantes do ICEV: calcula quantas faltas voc�
 
 ## Privacidade
 
-Tudo fica no seu navegador (localStorage). O OCR roda localmente. No primeiro uso do OCR, o navegador baixa o worker do Tesseract, o núcleo WASM e os dados de idioma em português da CDN jsDelivr (arquivos estáticos). Suas imagens e seus dados nunca são enviados a lugar nenhum. O botão "Apagar meus dados" no rodapé limpa tudo.
+Tudo fica no seu navegador (localStorage). O OCR roda localmente. No primeiro uso do OCR, o navegador baixa o worker do Tesseract, o núcleo WASM e os dados de idioma em português da CDN jsDelivr (arquivos estáticos). Suas imagens e seus dados nunca são enviados a lugar nenhum. O botão "Apagar meus dados" no rodapé limpa todos os seus dados (matérias, faltas, notas, horário e calendário); só a preferência de tema claro/escuro é mantida.
 
 ## Como rodar
 

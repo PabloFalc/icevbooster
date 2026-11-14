@@ -105,7 +105,9 @@ function Hero() {
   let big: string;
   let except: string | null = null;
   if (p === 'sem_data') big = 'Informe a data do simulado';
-  else if (p === 'data_passada') big = 'A data do simulado já passou';
+  else if (p === 'data_passada') {
+    big = simulado === todayIso() ? 'O simulado é hoje — não há mais aulas para planejar.' : 'A data do simulado já passou';
+  }
   else if (p.subjects.length === 0) {
     big = subjects.length === 0 ? 'Envie o print de faltas para começar' : 'Preencha a CH e o horário das matérias';
   } else {
