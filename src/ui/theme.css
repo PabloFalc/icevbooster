@@ -1,0 +1,78 @@
+:root {
+  --magenta: #C8215D; --purple: #45226B; --night: #1E1230;
+  --font: -apple-system, "SF Pro Display", "Segoe UI", Inter, system-ui, sans-serif;
+  --green: #2fbf71; --red: #e5484d;
+  color-scheme: light;
+  --bg: radial-gradient(45% 40% at 10% 0%, rgba(200,33,93,.32), transparent 70%), radial-gradient(50% 50% at 100% 20%, rgba(69,34,107,.28), transparent 70%), radial-gradient(60% 50% at 40% 120%, rgba(142,31,94,.22), transparent 70%), #faf7fb;
+  --fg: #1b1424;
+  --glass-bg: rgba(255,255,255,.58);
+  --glass-border: rgba(255,255,255,.85);
+  --glass-shadow: inset 0 1px 0 #fff, 0 8px 30px rgba(69,34,107,.12);
+  --tab-on-bg: #fff; --tab-on-shadow: 0 1px 4px rgba(0,0,0,.08);
+  --tab-on-color: var(--magenta);
+  --brand-accent: var(--magenta);
+}
+/* dark: explicit choice, or system preference when the user has not chosen */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: radial-gradient(55% 45% at 10% 5%, rgba(200,33,93,.7), transparent 70%), radial-gradient(55% 55% at 95% 25%, rgba(69,34,107,.95), transparent 70%), radial-gradient(60% 60% at 50% 115%, rgba(142,31,94,.65), transparent 70%), var(--night);
+  --fg: #fff;
+  --glass-bg: rgba(255,255,255,.12);
+  --glass-border: rgba(255,255,255,.28);
+  --glass-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 8px 30px rgba(0,0,0,.2);
+  --tab-on-bg: rgba(255,255,255,.22); --tab-on-shadow: none;
+  --tab-on-color: inherit;
+  --brand-accent: #ff7aa8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg: radial-gradient(55% 45% at 10% 5%, rgba(200,33,93,.7), transparent 70%), radial-gradient(55% 55% at 95% 25%, rgba(69,34,107,.95), transparent 70%), radial-gradient(60% 60% at 50% 115%, rgba(142,31,94,.65), transparent 70%), var(--night);
+    --fg: #fff;
+    --glass-bg: rgba(255,255,255,.12);
+    --glass-border: rgba(255,255,255,.28);
+    --glass-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 8px 30px rgba(0,0,0,.2);
+    --tab-on-bg: rgba(255,255,255,.22); --tab-on-shadow: none;
+    --tab-on-color: inherit;
+    --brand-accent: #ff7aa8;
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font); min-height: 100vh; padding: 24px;
+  background: var(--bg); background-attachment: fixed; color: var(--fg);
+  transition: background .3s, color .3s;
+}
+
+.glass {
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  border-radius: 22px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow);
+}
+
+.shell { max-width: 1040px; margin: 0 auto; }
+.page { display: grid; gap: 16px; }
+.page h1 { font-size: 22px; font-weight: 800; }
+
+.topnav { display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px; width: max-content; margin: 0 auto 18px; font-size: 13px; }
+.brand { font-weight: 800; padding: 0 12px 0 10px; }
+.brand span { color: var(--brand-accent); }
+.tab { padding: 7px 14px; border-radius: 999px; opacity: .75; color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.tab svg { display: none; width: 19px; height: 19px; }
+.tab.on { opacity: 1; font-weight: 600; background: var(--tab-on-bg); box-shadow: var(--tab-on-shadow); }
+.theme { margin-left: 6px; padding: 6px 10px; border-radius: 999px; cursor: pointer; border: none; font: inherit; font-size: 12px; background: transparent; color: inherit; }
+.theme-float { display: none; }
+
+.footer { max-width: 1040px; margin: 28px auto 0; font-size: 12px; opacity: .65; text-align: center; }
+
+@media (max-width: 767px) {
+  body { padding: 16px 16px 110px; }
+  .topnav { position: fixed; left: 10px; right: 10px; bottom: 12px; width: auto; margin: 0; height: 60px; border-radius: 30px; justify-content: space-around; padding: 0 4px; z-index: 10; }
+  .brand, .theme-top { display: none; }
+  .tab { flex-direction: column; gap: 3px; font-size: 9.5px; padding: 6px 9px; border-radius: 22px; opacity: .65; }
+  .tab svg { display: block; }
+  .tab.on { opacity: 1; color: var(--tab-on-color); }
+  .theme-float { display: inline-flex; position: fixed; top: 12px; right: 12px; z-index: 10; margin: 0; padding: 8px 12px; }
+}
