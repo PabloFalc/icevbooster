@@ -7,6 +7,7 @@ export interface Subject {
   pendentes: number;         // faltas not yet posted, typed by the student (default 0)
   percentual: number | null; // e.g. 11.11
   ch: number | null; chSource: ChSource | null;
+  conferir?: boolean;        // faltas total unreadable by OCR: keep old count, exclude from plan, UI warns
 }
 export type Schedule = Record<Weekday, [string | null, string | null]>; // [18:20 slot, 20:20 slot] → subject id
 export interface CalendarOverrides {
