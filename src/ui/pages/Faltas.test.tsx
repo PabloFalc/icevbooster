@@ -40,10 +40,11 @@ describe('Faltas page', () => {
   it('shows the skip plan hero and table', () => {
     seed();
     render(<Faltas />);
-    expect(screen.getByText(/Pode faltar tudo a partir de/).textContent).toContain('27/11');
+    expect(screen.getByText(/Pode faltar tudo a partir de/).textContent).toContain('25/11');
     expect(screen.getByText(/exceto Eletiva II/).textContent).toBe('exceto Eletiva II (sem saldo)');
     expect(row('Marketing Digital').textContent).toContain('2 aulas');
     expect(row('Marketing Digital').textContent).toContain('2 aulas (5 faltas)');
+    expect(row('Marketing Digital').textContent).toContain('11,1%');
   });
 
   it('asks for the simulado date or says it passed', () => {

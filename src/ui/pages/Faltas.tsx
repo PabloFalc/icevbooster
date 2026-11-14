@@ -16,10 +16,10 @@ const SLOTS = ['18:20', '20:20'];
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const fmtInput = (v: number | null) => (v === null ? '' : String(v).replace('.', ','));
 
-/** Rounded up to one decimal (never in the student's favor); whole numbers without decimals. */
+/** Display only: rounded to one decimal like the portal (4/36 → 11,1%); whole numbers without decimals. */
 function fmtPct(p: number): string {
-  const up = Math.ceil(p * 10 - 1e-9) / 10;
-  return `${Number.isInteger(up) ? String(up) : formatNum(up, 1)}%`;
+  const r = Math.round(p * 10) / 10;
+  return `${Number.isInteger(r) ? String(r) : formatNum(r, 1)}%`;
 }
 
 const scheduledIds = (s: Schedule) => new Set(Object.values(s).flat().filter((x): x is string => x !== null));

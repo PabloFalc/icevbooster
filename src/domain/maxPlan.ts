@@ -1,5 +1,6 @@
 import { saldoAulas } from './absences';
 import { classDays } from './calendar';
+import { addDays } from './dates';
 import type { CalendarOverrides, ClassDay, Iso, Schedule, Subject } from './types';
 
 export interface SubjectPlan {
@@ -42,12 +43,22 @@ export function planAll(input: {
   if (simulado <= today) return 'data_passada';
   const scheduled = new Set(Object.values(schedule).flat().filter((s): s is string => s !== null));
   const plans: SubjectPlan[] = [];
+  /** Per non-exception subject: the day after its last required (non-skipped) class; none when allCovered. */
+  const constraints: Iso[] = [];
+  let anyPlanned = false;
   for (const s of subjects) {
     const saldo = saldoAulas(s);
     if (saldo === null || !scheduled.has(s.id)) continue;
-    plans.push(planSubject(s.id, classDays(s.id, today, simulado, schedule, ov), saldo));
+    const days = classDays(s.id, today, simulado, schedule, ov);
+    const p = planSubject(s.id, days, saldo);
+    plans.push(p);
+    if (p.skipDays.length === 0) continue;
+    anyPlanned = true;
+    const required = days.length - p.skipDays.length;
+    if (required > 0) constraints.push(addDays(days[required - 1].date, 1));
   }
   const exceptions = plans.filter((p) => p.skipDays.length === 0).map((p) => p.subjectId);
-  const starts = plans.filter((p) => p.startDate !== null).map((p) => p.startDate as Iso);
-  return { subjects: plans, skipAllFrom: starts.length ? starts.reduce((a, b) => (a > b ? a : b)) : null, exceptions };
+  // Earliest date from which every non-exception subject's remaining classes are all skipped.
+  const skipAllFrom = !anyPlanned ? null : constraints.reduce((a, b) => (a > b ? a : b), today);
+  return { subjects: plans, skipAllFrom, exceptions };
 }

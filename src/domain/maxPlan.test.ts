@@ -61,11 +61,24 @@ describe('planAll', () => {
     expect(by.gestao.startDate).toBe('2026-11-19');
     expect(by.gestao.allCovered).toBe(true);
     expect(by.gestao.folgaAulas).toBe(3);
-    expect(p.skipAllFrom).toBe('2026-11-27');
+    // PO's last required class is 24/11; Marketing and Gestão are allCovered and impose no constraint.
+    expect(p.skipAllFrom).toBe('2026-11-25');
   });
   it('skips subjects without CH or not in schedule', () => {
     const p = planAll({ ...base, subjects: [...base.subjects, { ...sub('x', 36, 0), ch: null }, sub('fora', 36, 0)] }) as OverallPlan;
     expect(p.subjects.map((s) => s.subjectId)).toEqual(['eletiva', 'marketing', 'po', 'gestao']);
+  });
+  it('an allCovered subject whose first class is later does not push skipAllFrom', () => {
+    // Marketing (Fridays) is allCovered with first class 27/11; PO starts 25/11 → skip all from 25/11, not 27/11.
+    const p = planAll({ ...base, subjects: [sub('marketing', 36, 4), sub('po', 72, 8)] }) as OverallPlan;
+    const by = Object.fromEntries(p.subjects.map((s) => [s.subjectId, s]));
+    expect(by.marketing.allCovered).toBe(true);
+    expect(by.marketing.startDate).toBe('2026-11-27');
+    expect(p.skipAllFrom).toBe('2026-11-25');
+  });
+  it('skipAllFrom is today when every planned subject is allCovered', () => {
+    const p = planAll({ ...base, subjects: [sub('marketing', 36, 4), sub('gestao', 72, 0)] }) as OverallPlan;
+    expect(p.skipAllFrom).toBe('2026-11-16');
   });
   it('skipAllFrom is null when everyone is an exception', () => {
     const p = planAll({ ...base, subjects: [sub('eletiva', 36, 9)] }) as OverallPlan;
