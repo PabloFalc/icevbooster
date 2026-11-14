@@ -6,7 +6,9 @@ type Phase = 'idle' | 'reading' | 'error';
  * Print picker. The file is handed to `onFile` (OCR runs locally in the browser); it is never sent anywhere.
  * While `onFile` runs the card shows "Lendo o print…"; a rejection shows the failure copy.
  */
-export function Upload({ label, accept, onFile }: { label: string; accept: string; onFile(f: File): Promise<void> }) {
+export function Upload({ label, accept, onFile, hint = 'Tire o print com a tabela completa visível — todas as linhas e colunas.', errorText = 'Não consegui ler esse print. Tente outro print ou preencha manualmente.' }: {
+  label: string; accept: string; onFile(f: File): Promise<void>; hint?: string; errorText?: string;
+}) {
   const [phase, setPhase] = useState<Phase>('idle');
 
   async function onChange(e: Event) {
@@ -29,14 +31,14 @@ export function Upload({ label, accept, onFile }: { label: string; accept: strin
         <input type="file" accept={accept} onChange={onChange} disabled={phase === 'reading'} />
         {label}
       </label>
-      <p class="upload-hint">Tire o print com a tabela completa visível — todas as linhas e colunas.</p>
+      <p class="upload-hint">{hint}</p>
       {phase === 'reading' && (
         <p class="upload-status" role="status">
           <progress aria-label="Lendo o print" />
           Lendo o print…
         </p>
       )}
-      {phase === 'error' && <p class="upload-error" role="alert">Não consegui ler esse print. Tente outro print ou preencha manualmente.</p>}
+      {phase === 'error' && <p class="upload-error" role="alert">{errorText}</p>}
     </div>
   );
 }

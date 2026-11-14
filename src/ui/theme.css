@@ -149,6 +149,61 @@ td.nome { white-space: normal; }
 .grid.compact .d.today::after { bottom: 3px; width: 10px; }
 .grid.compact .dow { font-size: 9.5px; }
 
+/* ---------- Calendário ---------- */
+.cal-page { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; align-items: start; }
+.cal-page .col { display: grid; gap: 16px; min-width: 0; }
+.cal-page .card h3 { flex-wrap: wrap; }
+.seg { display: flex; gap: 2px; padding: 3px; border-radius: 999px; font-size: 11px; flex-wrap: wrap; background: var(--subtle); }
+.seg button { border: none; font: inherit; color: inherit; background: none; padding: 4px 9px; border-radius: 999px; opacity: .7; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+.seg button.on { background: var(--tab-on-bg); box-shadow: var(--tab-on-shadow); opacity: 1; }
+.seg .swatch { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.mnav { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 12px; }
+.mnav .m { font-size: 17px; font-weight: 700; }
+.arrows { display: flex; gap: 4px; }
+.arrows button { border: none; font: inherit; font-size: 13px; color: inherit; background: var(--subtle); border-radius: 999px; min-width: 34px; height: 34px; padding: 0 12px; cursor: pointer; }
+.grid.full .d { cursor: pointer; padding: 2px; overflow: hidden; }
+.grid.full .d.empty { cursor: default; }
+.d small { font-size: 8.5px; font-weight: 500; opacity: .85; margin-top: 1px; text-align: center; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.d .dots { display: flex; gap: 2px; margin-top: 3px; }
+.d .dots i { width: 5px; height: 5px; border-radius: 50%; display: block; }
+.d:focus-visible { outline: 2px solid var(--magenta); outline-offset: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11.5px; margin-top: 14px; opacity: .9; }
+.legend i { display: inline-block; width: 14px; height: 14px; border-radius: 5px; vertical-align: -3px; margin-right: 5px; }
+.lg-ok { background: rgba(47,191,113,.35); box-shadow: inset 0 0 0 1.5px #2fbf71; }
+.lg-no { background: rgba(229,72,77,.3); box-shadow: inset 0 0 0 1.5px #e5484d; }
+.lg-n { background: var(--field-bg); box-shadow: inset 0 0 0 1px var(--line); }
+.lg-hol { background: repeating-linear-gradient(135deg, rgba(150,150,150,.5) 0 2px, transparent 2px 5px); opacity: .7; }
+.lg-sim { background: var(--magenta); }
+.detail .date { font-size: 20px; font-weight: 800; margin-bottom: 2px; }
+.detail .sub, .pdf-confirm .sub { font-size: 12px; opacity: .7; margin-bottom: 10px; }
+.detail h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; opacity: .55; margin: 16px 0 6px; }
+.rows li { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12.5px; padding: 8px 0; }
+.rows li + li { border-top: 1px solid var(--line); }
+.tag { font-size: 10.5px; padding: 3px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+.tag.ok { background: rgba(47,191,113,.2); color: var(--green); }
+.tag.no { background: rgba(229,72,77,.2); color: var(--red); }
+.tag.nn { opacity: .75; background: var(--subtle); }
+.obs { font-size: 12px; line-height: 1.5; padding: 10px 12px; border-radius: 12px; margin-top: 6px; background: var(--subtle); display: grid; gap: 6px; }
+.stat { display: flex; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
+.stat div { flex: 1; min-width: 90px; padding: 10px; border-radius: 14px; text-align: center; background: var(--subtle); }
+.stat b { display: block; font-size: 18px; }
+.stat span { font-size: 10.5px; opacity: .7; }
+.actions { display: grid; gap: 10px; margin-top: 16px; }
+.actions:empty { display: none; }
+.btn { border: none; font: inherit; font-size: 12.5px; font-weight: 600; color: inherit; background: var(--subtle); border-radius: 12px; padding: 9px 12px; cursor: pointer; text-align: center; }
+.btn.primary { background: var(--magenta); color: #fff; }
+.pdf-confirm { display: grid; gap: 8px; }
+.cands { list-style: none; display: grid; gap: 4px; max-height: 240px; overflow-y: auto; }
+.cands label { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.35; }
+.cands input { accent-color: var(--magenta); margin-top: 2px; }
+
+@media (max-width: 767px) {
+  .cal-page { grid-template-columns: 1fr; padding-bottom: 8px; }
+  .grid.full { gap: 3px; }
+  .grid.full .d { border-radius: 9px; font-size: 12px; }
+  .d small { font-size: 7.5px; }
+}
+
 @media (max-width: 767px) {
   .faltas-page { grid-template-columns: 1fr; }
   .hero .big { font-size: 20px; }

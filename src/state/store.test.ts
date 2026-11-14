@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   importFaltas, importHistorico, importHorario, importNotas, loadState, resetForTests, saveState, clearState,
   setComposite, state, plan, outlooks, STORAGE_KEY, updateSubject, setSchedule, setSimulado, setFaltasPrintDate, emptySchedule,
+  setNoClass, setExtraDay, addNoClassDays,
 } from './store';
 
 const fakeStorage = (): Storage => {
@@ -157,5 +158,46 @@ describe('mutation helpers', () => {
     expect(state.value.faltasPrintDate).toBe('2026-11-10');
     setFaltasPrintDate('');
     expect(state.value.faltasPrintDate).toBe('2026-11-10');
+  });
+});
+
+describe('calendar overrides', () => {
+  beforeEach(() => resetForTests());
+  it('setNoClass toggles a plain day via noClass', () => {
+    setNoClass('2026-11-18', true);
+    expect(state.value.overrides.noClass['2026-11-18']).toBe('Sem aula');
+    setNoClass('2026-11-18', false);
+    expect(state.value.overrides.noClass).toEqual({});
+    expect(state.value.overrides.removedHolidays).toEqual([]);
+  });
+  it('setNoClass on an automatic holiday uses removedHolidays', () => {
+    setNoClass('2026-11-20', false);
+    expect(state.value.overrides.removedHolidays).toEqual(['2026-11-20']);
+    expect(state.value.overrides.noClass).toEqual({});
+    setNoClass('2026-11-20', true);
+    expect(state.value.overrides.removedHolidays).toEqual([]);
+    expect(state.value.overrides.noClass).toEqual({});
+  });
+  it('setNoClass ignores invalid dates', () => {
+    setNoClass('lixo', true);
+    setNoClass('2026-02-31', true);
+    setNoClass('', false);
+    expect(state.value.overrides).toEqual({ noClass: {}, removedHolidays: [], extraDays: {} });
+  });
+  it('setExtraDay sets and unsets, guarding date and weekday', () => {
+    setExtraDay('2026-11-21', 2);
+    expect(state.value.overrides.extraDays).toEqual({ '2026-11-21': 2 });
+    setExtraDay('2026-11-21', 6 as never);
+    setExtraDay('2026-11-21', Number.NaN as never);
+    setExtraDay('x', 1);
+    expect(state.value.overrides.extraDays).toEqual({ '2026-11-21': 2 });
+    setExtraDay('2026-11-21', null);
+    expect(state.value.overrides.extraDays).toEqual({});
+  });
+  it('addNoClassDays merges labels, skips invalid dates and re-enables removed holidays', () => {
+    setNoClass('2026-11-20', false);
+    addNoClassDays({ '2026-11-20': 'Consciência Negra', '2026-12-01': 'Recesso', bad: 'x' });
+    expect(state.value.overrides.noClass).toEqual({ '2026-11-20': 'Consciência Negra', '2026-12-01': 'Recesso' });
+    expect(state.value.overrides.removedHolidays).toEqual([]);
   });
 });

@@ -3,6 +3,7 @@ import { routeFromHash, type Route } from './router';
 import { Nav } from './ui/Nav';
 import { Footer } from './ui/Footer';
 import { Faltas } from './ui/pages/Faltas';
+import { Calendario } from './ui/pages/Calendario';
 
 const TITLES: Record<Route, string> = {
   faltas: 'Faltas',
@@ -24,6 +25,7 @@ export function App() {
       <main class="page">
         <h1>{TITLES[route]}</h1>
         {route === 'faltas' && <Faltas />}
+        {route === 'calendario' && <Calendario />}
       </main>
       <Footer />
     </div>

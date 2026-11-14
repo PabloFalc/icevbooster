@@ -2,6 +2,7 @@ import { computed, effect, signal } from '@preact/signals';
 import type { ReadonlySignal } from '@preact/signals';
 import { resolveCh } from '../domain/absences';
 import { todayIso } from '../domain/dates';
+import { holidaysFor } from '../domain/holidays';
 import { compositeToSlot } from '../domain/composite';
 import type { Composite } from '../domain/composite';
 import { clampGrade, gradeOutlook } from '../domain/grades';
@@ -266,6 +267,58 @@ export function setSimulado(d: Iso | null): void {
 export function setFaltasPrintDate(d: Iso): void {
   if (!ISO.test(d)) return;
   update((s) => ({ ...s, faltasPrintDate: d }));
+}
+
+const isRealIso = (d: unknown): d is Iso => {
+  if (typeof d !== 'string' || !ISO.test(d)) return false;
+  const t = new Date(`${d}T00:00:00Z`);
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d;
+};
+
+/**
+ * Marks a date as "sem aula" (`off` true) or "tem aula" (false). A manual no-class day lives in `noClass`;
+ * an automatic holiday is switched off/on through `removedHolidays`.
+ */
+export function setNoClass(date: Iso, off: boolean): void {
+  if (!isRealIso(date)) return;
+  update((s) => {
+    const isHoliday = date in holidaysFor(Number(date.slice(0, 4)));
+    const noClass = { ...s.overrides.noClass };
+    let removed = s.overrides.removedHolidays.filter((d) => d !== date);
+    if (off) {
+      if (!isHoliday) noClass[date] = 'Sem aula';
+    } else {
+      delete noClass[date];
+      if (isHoliday) removed = [...removed, date];
+    }
+    return { ...s, overrides: { ...s.overrides, noClass, removedHolidays: removed } };
+  });
+}
+
+/** Imports PDF-detected no-class days (date → label); invalid dates and blank labels are skipped. */
+export function addNoClassDays(days: Record<Iso, string>): void {
+  const clean = Object.entries(days).filter(([d]) => isRealIso(d));
+  if (clean.length === 0) return;
+  update((s) => ({
+    ...s,
+    overrides: {
+      ...s.overrides,
+      noClass: { ...s.overrides.noClass, ...Object.fromEntries(clean.map(([d, l]) => [d, l.trim() || 'Sem aula'])) },
+      removedHolidays: s.overrides.removedHolidays.filter((d) => !clean.some(([c]) => c === d)),
+    },
+  }));
+}
+
+/** Makes `date` a make-up class day that follows `weekday`'s schedule (1–5); null removes it. */
+export function setExtraDay(date: Iso, weekday: Weekday | null): void {
+  if (!isRealIso(date)) return;
+  if (weekday !== null && !(Number.isInteger(weekday) && weekday >= 1 && weekday <= 5)) return;
+  update((s) => {
+    const extraDays = { ...s.overrides.extraDays };
+    if (weekday === null) delete extraDays[date];
+    else extraDays[date] = weekday;
+    return { ...s, overrides: { ...s.overrides, extraDays } };
+  });
 }
 
 // ---------- derived ----------
