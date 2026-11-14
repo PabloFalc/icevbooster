@@ -98,6 +98,12 @@ describe('removeComposite / setComposite guards', () => {
     importNotas([nota('Cálculo', 8)], '2026-11-15');
     expect(state.value.grades['calculo'].p1.value).toBe(8);
   });
+  it('an invalid composite is stored but does not write the grade slot', () => {
+    importNotas([nota('Cálculo', 7.5)], '2026-11-14');
+    setComposite('calculo:p1', { mode: 'pontos', parts: [{ nome: 'a', max: 8, tirei: 4 }] });
+    expect(state.value.composites['calculo:p1'].parts[0].max).toBe(8);
+    expect(state.value.grades['calculo'].p1).toEqual({ state: 'completa', value: 7.5 });
+  });
   it('removeComposite on a missing key is a no-op', () => {
     const before = state.value;
     removeComposite('nada:p1');

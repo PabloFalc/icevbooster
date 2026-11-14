@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/preact';
-import { importNotas, resetForTests, setComposite, state } from '../../state/store';
+import { importNotas, resetForTests, setComposite, setGradeSlot, state } from '../../state/store';
 import { Calculadora } from './Calculadora';
 
 const nota = (nome: string, p1: number | null, p2: number | null = null, p3: number | null = null) =>
@@ -164,5 +164,68 @@ describe('Calculadora page', () => {
       if (top) Object.defineProperty(HTMLElement.prototype, 'offsetTop', top); else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetTop;
       if (height) Object.defineProperty(HTMLElement.prototype, 'clientHeight', height); else delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientHeight;
     }
+  });
+
+  describe('seeding from the existing grade (no store write until an edit)', () => {
+    const open = (p: string) => { history.replaceState(null, '', `#/calculadora?m=marketing-digital&p=${p}`); render(<Calculadora />); };
+    const val = (l: string) => (screen.getByLabelText(l) as HTMLInputElement).value;
+
+    it('completa slot: one Prova part with the grade; slot stays 8,90 until an edit', () => {
+      const before = state.value;
+      open('p1');
+      expect(val('Nome da parte 1')).toBe('Prova');
+      expect(val('Tirei na parte 1')).toBe('8,9');
+      expect(state.value).toBe(before);
+      expect(state.value.grades['marketing-digital'].p1).toEqual({ state: 'completa', value: 8.9 });
+      type('Nome da parte 1', 'Prova final');
+      expect(state.value.grades['marketing-digital'].p1).toMatchObject({ state: 'completa', value: 8.9 });
+    });
+
+    it('incompleta slot: Já garantido + Restante', () => {
+      setGradeSlot('marketing-digital', 'p2', { state: 'incompleta', value: 1, potencial: 9 });
+      const before = state.value;
+      open('p2');
+      expect(val('Nome da parte 1')).toBe('Já garantido');
+      expect(val('Vale da parte 1')).toBe('1');
+      expect(val('Tirei na parte 1')).toBe('1');
+      expect(val('Nome da parte 2')).toBe('Restante');
+      expect(val('Vale da parte 2')).toBe('9');
+      expect(val('Tirei na parte 2')).toBe('');
+      expect(state.value).toBe(before);
+    });
+
+    it('nao_feita slot: blank Prova of 10', () => {
+      const before = state.value;
+      open('p2');
+      expect(val('Vale da parte 1')).toBe('10');
+      expect(val('Tirei na parte 1')).toBe('');
+      expect(state.value).toBe(before);
+    });
+
+    it('outlook, needs and table highlight show right after selecting, and agree', () => {
+      open('p2');
+      expect(result().textContent).toContain('Com 8,90 pontos na matéria, faltam 12,10 para os 21.');
+      expect(result().textContent).toContain('Tire 6,05 em Prova (de 10)');
+      expect(result().textContent).toContain('30 acertos');
+      expect(document.querySelector('.simtab .hl span')?.textContent).toBe('30');
+    });
+
+    it('invalid composite is kept in the form but does not change the slot', () => {
+      open('p1');
+      type('Vale da parte 1', '8');
+      expect(screen.getByText('Corrija a soma para atualizar a nota da matéria.')).toBeTruthy();
+      expect(state.value.composites['marketing-digital:p1'].parts[0].max).toBe(8);
+      expect(state.value.grades['marketing-digital'].p1).toEqual({ state: 'completa', value: 8.9 });
+    });
+
+    it('shows a needed amount of 10/3 rounded up as 3,34', () => {
+      importNotas([nota('Gestão', 1)], '2026-11-14');
+      // P1 = 1: 20 points still needed, 10 from P2 and 10 from the simulado; 3 open parts share P2's 10
+      setComposite('gestao:p2', { mode: 'pontos', parts: [{ nome: 'A', max: 4, tirei: null }, { nome: 'B', max: 4, tirei: null }, { nome: 'C', max: 4, tirei: null }] });
+      history.replaceState(null, '', '#/calculadora?m=gestao&p=p2');
+      render(<Calculadora />);
+      expect(result().textContent).toContain('Tire 3,34 em A (de 4)');
+      expect(result().textContent).toContain('Tire 3,34 em C (de 4)');
+    });
   });
 });

@@ -3,7 +3,7 @@ import type { ReadonlySignal } from '@preact/signals';
 import { resolveCh } from '../domain/absences';
 import { todayIso } from '../domain/dates';
 import { holidaysFor } from '../domain/holidays';
-import { compositeToSlot } from '../domain/composite';
+import { compositeSummary, compositeToSlot } from '../domain/composite';
 import type { Composite } from '../domain/composite';
 import { clampGrade, gradeOutlook } from '../domain/grades';
 import type { Outlook } from '../domain/grades';
@@ -223,7 +223,7 @@ export function setComposite(key: string, c: Composite): void {
     const next: AppState = { ...s, composites: { ...s.composites, [key]: c } };
     const i = key.lastIndexOf(':');
     const slot = key.slice(i + 1);
-    if (i > 0 && (slot === 'p1' || slot === 'p2')) {
+    if (i > 0 && (slot === 'p1' || slot === 'p2') && compositeSummary(c).valid) {
       const id = key.slice(0, i);
       const g = s.grades[id] ?? emptyGrades();
       next.grades = { ...s.grades, [id]: { ...g, [slot]: compositeToSlot(c) } };

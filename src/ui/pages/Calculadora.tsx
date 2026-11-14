@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
-import { compositeNeeds, compositeSummary } from '../../domain/composite';
+import { compositeNeeds, compositeSummary, compositeToSlot } from '../../domain/composite';
 import type { Composite, CompositeMode, Part } from '../../domain/composite';
 import { formatNeeded, formatNum, parseDecimal } from '../../domain/dates';
 import { gradeOutlook } from '../../domain/grades';
 import type { Outlook } from '../../domain/grades';
 import { notaFromAcertos } from '../../domain/simulado';
-import type { SubjectGrades } from '../../domain/types';
+import type { GradeSlot, SubjectGrades } from '../../domain/types';
 import { removeComposite, setComposite, state } from '../../state/store';
 import { SimuladoTable } from '../SimuladoTable';
 
@@ -16,6 +16,15 @@ interface Link { m: string; p: PKey }
 const fmtInput = (v: number | null) => (v === null ? '' : String(v).replace('.', ','));
 const fmtSum = (n: number) => formatNum(n).replace(/,00$/, '').replace(/(,\d)0$/, '$1');
 const defaultComposite = (): Composite => ({ mode: 'pontos', parts: [{ nome: 'Prova', max: 10, tirei: null }] });
+/** Form to show when nothing is stored: mirrors the existing grade slot so a first edit never wipes it. */
+function seedComposite(s: GradeSlot): Composite {
+  const v = typeof s.value === 'number' && Number.isFinite(s.value) ? Math.min(10, Math.max(0, s.value)) : 0;
+  if (s.state === 'completa') return { mode: 'pontos', parts: [{ nome: 'Prova', max: 10, tirei: v }] };
+  if (s.state === 'incompleta') {
+    return { mode: 'pontos', parts: [{ nome: 'Já garantido', max: v, tirei: v }, { nome: 'Restante', max: 10 - v, tirei: null }] };
+  }
+  return defaultComposite();
+}
 const emptySlot = () => ({ state: 'nao_feita' as const, value: null });
 
 /** Reads `?m=<id>&p=p1|p2` from the hash; invalid or unknown → null (Cálculo livre). */
@@ -116,9 +125,10 @@ export function Calculadora() {
   const { subjects, composites, grades } = state.value;
   const key = link ? `${link.m}:${link.p}` : 'livre';
   const stored = composites[key];
-  const c = stored ?? defaultComposite();
-  const linked = link !== null && stored !== undefined;
   const subject = link ? subjects.find((s) => s.id === link.m) : undefined;
+  const realGrades: SubjectGrades = (subject && grades[subject.id]) || { p1: emptySlot(), p2: emptySlot(), p3: emptySlot() };
+  const c = stored ?? (link ? seedComposite(realGrades[link.p]) : defaultComposite());
+  const linked = link !== null && stored !== undefined;
 
   const select = (value: string) => {
     const [m, p] = value.split(':');
@@ -132,8 +142,9 @@ export function Calculadora() {
   const sum = compositeSummary(c);
   const total = c.parts.reduce((s, p) => s + (Number.isFinite(p.max) && p.max > 0 ? p.max : 0), 0);
   const peso = c.mode === 'peso';
-  const g: SubjectGrades = (subject && grades[subject.id]) || { p1: emptySlot(), p2: emptySlot(), p3: emptySlot() };
-  const outlook = subject ? gradeOutlook(g) : null;
+  // the outlook always reflects the form (seeded or stored), so panel and table agree
+  const g: SubjectGrades = link ? { ...realGrades, [link.p]: sum.valid ? compositeToSlot(c) : realGrades[link.p] } : realGrades;
+  const outlook = subject && link ? gradeOutlook(g) : null;
   const unit = link ? link.p.toUpperCase() : 'nota';
 
   return (
@@ -193,10 +204,12 @@ export function Calculadora() {
           </p>
         )}
 
+        {link && !sum.valid && <p class="warn-msg">Corrija a soma para atualizar a nota da matéria.</p>}
+
         <div class={`result inner${sum.valid ? '' : ' flagged'}`} aria-live="polite">
           Garantido na {unit}: <b>{formatNum(sum.garantido)}</b> · ainda dá para ganhar: <b>{formatNum(sum.potencial)}</b>
           {!sum.valid && <small class="flag"> (conta provisória: a soma não fecha)</small>}
-          {link && linked && outlook && (<><br /><Needs link={link} c={c} o={outlook} /></>)}
+          {link && outlook && (<><br /><Needs link={link} c={c} o={outlook} /></>)}
         </div>
 
         {link && subject && (
