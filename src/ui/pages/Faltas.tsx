@@ -86,6 +86,15 @@ function exceptionText(s: Subject, p: SubjectPlan, simulado: string): string {
   return `${s.nome} (saldo não cobre o último dia de aula)`;
 }
 
+/** Why a subject is left out of the plan; null when it is planned. */
+function excludedReason(s: Subject, planned: Set<string>, scheduled: Set<string>): string | null {
+  if (planned.has(s.id)) return null;
+  if (s.conferir) return 'confira as faltas';
+  if (s.ch === null) return 'sem carga horária';
+  if (!scheduled.has(s.id)) return 'sem horário';
+  return null;
+}
+
 function Hero() {
   const p = plan.value;
   const { subjects, simulado } = state.value;
@@ -103,6 +112,13 @@ function Hero() {
       const s = subjects.find((x) => x.id === id)!;
       return exceptionText(s, p.subjects.find((x) => x.subjectId === id)!, simulado!);
     });
+    // Subjects the plan can't compute stay visible: never shown as free to skip.
+    const planned = new Set(p.subjects.map((x) => x.subjectId));
+    const scheduled = scheduledIds(state.value.schedule);
+    for (const s of subjects) {
+      const why = excludedReason(s, planned, scheduled);
+      if (why) names.push(`${s.nome} (${why})`);
+    }
     if (names.length) except = `${p.skipAllFrom ? 'exceto ' : ''}${names.join(', ')}`;
   }
   return (

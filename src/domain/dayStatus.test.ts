@@ -46,9 +46,21 @@ describe('dayStatus', () => {
   it('normal when a class is outside the skip days', () => {
     expect(dayStatus('2026-11-18', ctx).kind).toBe('normal'); // po on Wednesday, before 11-25
   });
-  it('ignores unplanned subjects; a day with only ignored classes is none', () => {
-    expect(dayStatus('2026-11-18', ctx).subjects).toEqual([{ id: 'po', slot: 1, status: 'normal' }]);
-    expect(dayStatus('2026-11-16', ctx)).toMatchObject({ kind: 'none', subjects: [] });
+  it('unplanned or unknown subjects are normal classes, never skipped', () => {
+    expect(dayStatus('2026-11-18', ctx).subjects).toEqual([{ id: 'estagio', slot: 0, status: 'normal' }, { id: 'po', slot: 1, status: 'normal' }]);
+    expect(dayStatus('2026-11-16', ctx)).toMatchObject({
+      kind: 'normal', subjects: [{ id: 'eletivaVI', slot: 0, status: 'normal' }, { id: 'extensao', slot: 1, status: 'normal' }],
+    });
+  });
+  it('a day with an in-window planned subject and a conferir subject is normal, not ok', () => {
+    const sch: Schedule = { ...schedule, 5: ['marketing', 'redes'] };
+    const r = dayStatus('2026-11-27', { ...ctx, schedule: sch });
+    expect(r.kind).toBe('normal');
+    expect(r.subjects).toEqual([{ id: 'marketing', slot: 0, status: 'ok' }, { id: 'redes', slot: 1, status: 'normal' }]);
+  });
+  it('without any planned subject a day with classes is normal; empty slots only is none', () => {
+    expect(dayStatus('2026-11-18', { ...ctx, saldo: {} }).kind).toBe('normal');
+    expect(dayStatus('2026-11-18', { ...ctx, schedule: { ...schedule, 3: [null, null] } }).kind).toBe('none');
   });
   it('filter restricts to one subject', () => {
     expect(dayStatus('2026-11-17', { ...ctx, filter: 'po' })).toMatchObject({ kind: 'normal', subjects: [{ id: 'po', slot: 1, status: 'normal' }] });

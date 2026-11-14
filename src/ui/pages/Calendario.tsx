@@ -38,6 +38,7 @@ function Detail({ date }: { date: Iso }) {
 
   const rows = st.subjects;
   const ids = [...new Set(rows.map((r) => r.id))];
+  const withSaldo = ids.filter((id) => id in ctx.saldo);
   const obs: string[] = [];
   if (st.kind === 'holiday' && st.label) obs.push(`${st.label} — sem aula.`);
   if (st.kind === 'simulado') obs.push('Dia do simulado — sem falta.');
@@ -82,11 +83,11 @@ function Detail({ date }: { date: Iso }) {
           ))}
         </ul>
       )}
-      {ids.length > 0 && (
+      {withSaldo.length > 0 && (
         <>
           <h4>Saldo das matérias do dia</h4>
           <div class="stat">
-            {ids.map((id) => (
+            {withSaldo.map((id) => (
               <div key={id}>
                 <b class={ctx.saldo[id] === 0 ? 'bad' : undefined}>{typeof ctx.saldo[id] === 'number' ? ctx.saldo[id] : '—'}</b>
                 <span>{ctx.saldo[id] === 1 ? 'aula' : 'aulas'} · {name(id)}</span>

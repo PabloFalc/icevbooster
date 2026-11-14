@@ -57,6 +57,23 @@ describe('Faltas page', () => {
     expect(screen.getByText('A data do simulado já passou')).toBeTruthy();
   });
 
+  it('hero lists subjects left out of the plan with their reason, never as free days', () => {
+    const sch: Schedule = { ...schedule, 1: ['redes', 'novo'] };
+    seed([...base, sub('ingles', 'Inglês VI', 36, 0), sub('novo', 'Estatística', null, 2), sub('redes', 'Redes', 36, 0, { conferir: true })], '2026-12-10', sch);
+    render(<Faltas />);
+    expect(screen.getByText(/Pode faltar tudo a partir de/).textContent).toContain('25/11');
+    expect(screen.getByText(/^exceto /).textContent).toBe(
+      'exceto Eletiva II (sem saldo), Inglês VI (sem horário), Estatística (sem carga horária), Redes (confira as faltas)',
+    );
+  });
+
+  it('hero names excluded subjects even when nothing can be skipped', () => {
+    seed([sub('eletiva', 'Eletiva II', 36, 9), sub('redes', 'Redes', 36, 0, { conferir: true })], '2026-12-10', { ...schedule, 1: ['redes', null] });
+    render(<Faltas />);
+    expect(screen.getByText('Não dá para faltar tudo antes do simulado')).toBeTruthy();
+    expect(screen.getByText('Eletiva II (sem saldo), Redes (confira as faltas)')).toBeTruthy();
+  });
+
   it('"Parar a partir de" column: date, já, não pode, folga', () => {
     seed();
     render(<Faltas />);

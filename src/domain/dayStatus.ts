@@ -25,8 +25,13 @@ export function dayStatus(
 
   const subjects: DaySubject[] = [];
   schedule[wd as Weekday].forEach((id, i) => {
-    if (id === null || !(id in saldo)) return;
+    if (id === null) return;
     if (filter !== undefined && id !== filter) return;
+    // Not planned (conferir, no CH, no valid plan) or unknown: the app can't say it may be skipped.
+    if (!(id in saldo)) {
+      subjects.push({ id, slot: i as 0 | 1, status: 'normal' });
+      return;
+    }
     const skip = plan.subjects.find((p) => p.subjectId === id)?.skipDays.includes(date) ?? false;
     const status = saldo[id] === 0 ? 'no' : skip ? 'ok' : 'normal';
     subjects.push({ id, slot: i as 0 | 1, status });
