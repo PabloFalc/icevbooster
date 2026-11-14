@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   importFaltas, importHistorico, importHorario, importNotas, loadState, resetForTests, saveState, clearState,
   setComposite, state, plan, outlooks, STORAGE_KEY, updateSubject, setSchedule, setSimulado, setFaltasPrintDate, emptySchedule,
-  setNoClass, setExtraDay, addNoClassDays,
+  setNoClass, setExtraDay, addNoClassDays, setGradeSlot,
 } from './store';
 
 const fakeStorage = (): Storage => {
@@ -199,5 +199,31 @@ describe('calendar overrides', () => {
     addNoClassDays({ '2026-11-20': 'Consciência Negra', '2026-12-01': 'Recesso', bad: 'x' });
     expect(state.value.overrides.noClass).toEqual({ '2026-11-20': 'Consciência Negra', '2026-12-01': 'Recesso' });
     expect(state.value.overrides.removedHolidays).toEqual([]);
+  });
+});
+
+describe('setGradeSlot', () => {
+  beforeEach(() => importFaltas([{ nome: 'Marketing Digital', faltas: 0, percentual: 0 }], '2026-11-14'));
+  const g = () => state.value.grades['marketing-digital'];
+  it('creates the grades entry, clamps to 0-10 and never writes NaN', () => {
+    setGradeSlot('marketing-digital', 'p1', { state: 'completa', value: 12 });
+    setGradeSlot('marketing-digital', 'p2', { state: 'incompleta', value: Number.NaN, potencial: Number.NaN });
+    expect(g().p1).toEqual({ state: 'completa', value: 10 });
+    expect(g().p2).toEqual({ state: 'incompleta', value: null });
+    expect(g().p3).toEqual({ state: 'nao_feita', value: null });
+    setGradeSlot('marketing-digital', 'p1', { state: 'completa', value: -3 });
+    expect(g().p1.value).toBe(0);
+  });
+  it('keeps potencial only on incompleta and drops values of nao_feita', () => {
+    setGradeSlot('marketing-digital', 'p2', { state: 'incompleta', value: 1, potencial: 4 });
+    expect(g().p2).toEqual({ state: 'incompleta', value: 1, potencial: 4 });
+    setGradeSlot('marketing-digital', 'p2', { state: 'nao_feita', value: 5, potencial: 4 });
+    expect(g().p2).toEqual({ state: 'nao_feita', value: null });
+  });
+  it('ignores unknown subjects and bad keys', () => {
+    setGradeSlot('nada', 'p1', { state: 'completa', value: 5 });
+    setGradeSlot('marketing-digital', 'p9' as never, { state: 'completa', value: 5 });
+    expect(state.value.grades['nada']).toBeUndefined();
+    expect(g()).toBeUndefined();
   });
 });

@@ -11,4 +11,7 @@ describe('routeFromHash', () => {
     expect(routeFromHash('#/calendario')).toBe('calendario');
     expect(routeFromHash('#/calculadora')).toBe('calculadora');
   });
+  it('ignores a query after the route', () => {
+    expect(routeFromHash('#/calculadora?m=x&p=p2')).toBe('calculadora');
+  });
 });

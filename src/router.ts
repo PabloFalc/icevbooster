@@ -3,6 +3,6 @@ export type Route = 'faltas' | 'calendario' | 'notas' | 'calculadora';
 export const ROUTES: Route[] = ['faltas', 'calendario', 'notas', 'calculadora'];
 
 export function routeFromHash(hash: string): Route {
-  const name = hash.replace(/^#\/?/, '');
+  const name = hash.replace(/^#\/?/, '').split('?')[0];
   return (ROUTES as string[]).includes(name) ? (name as Route) : 'faltas';
 }

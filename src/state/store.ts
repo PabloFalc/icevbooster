@@ -255,6 +255,23 @@ export function updateSubject(id: string, patch: Partial<Pick<Subject, 'faltas' 
   }));
 }
 
+/**
+ * Replaces one grade slot of a subject (P1/P2/P3). Values are clamped to 0–10 and never NaN (non-finite → null);
+ * `potencial` only survives on an incompleta slot; a nao_feita slot never keeps a value.
+ */
+export function setGradeSlot(subjectId: string, key: 'p1' | 'p2' | 'p3', slot: GradeSlot): void {
+  if (!['p1', 'p2', 'p3'].includes(key) || !['completa', 'incompleta', 'nao_feita'].includes(slot.state)) return;
+  const v = finiteOrNull(slot.value);
+  const pot = finiteOrNull(slot.potencial);
+  const clean: GradeSlot = { state: slot.state, value: slot.state === 'nao_feita' || v === null ? null : clampGrade(v) };
+  if (slot.state === 'incompleta' && pot !== null) clean.potencial = clampGrade(pot);
+  update((s) => {
+    if (!s.subjects.some((x) => x.id === subjectId)) return s;
+    const g = s.grades[subjectId] ?? emptyGrades();
+    return { ...s, grades: { ...s.grades, [subjectId]: { ...g, [key]: clean } } };
+  });
+}
+
 export function setSchedule(schedule: Schedule): void {
   update((s) => ({ ...s, schedule }));
 }
