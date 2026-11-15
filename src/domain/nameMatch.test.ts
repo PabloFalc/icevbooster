@@ -24,7 +24,7 @@ describe('namesMatch', () => {
   it('reads OCR bar runs after a word as roman numerals', () => {
     expect(namesMatch('Eletiva 11 - Gestão de Pessoas', 'Eletiva II')).toBe(true);
     expect(namesMatch('Eletiva 11 - Gestão de Pessoas', 'Eletiva VI')).toBe(false);
-    expect(namesMatch('Proj. de Extensão 1', 'Projeto de Extensão VI')).toBe(false);
+    expect(namesMatch('Eletiva 1', 'Eletiva VI')).toBe(false);
   });
   it('never matches names empty after stopwords/numerals', () => {
     expect(namesMatch('de e', 'de e')).toBe(false);
@@ -58,5 +58,20 @@ describe('exact names first', () => {
   it('matchIndices never maps two names onto one subject', () => {
     expect(matchIndices([{ id: 'p', nome: 'Programação' }], ['Programação Web', 'Programação'])).toEqual([null, 'p']);
     expect(matchIndices([{ id: 'bd', nome: 'Banco de Dados' }], ['Banco de Dados', 'Banco de Dados'])).toEqual(['bd', null]);
+  });
+});
+
+describe('one-per-period subjects (Inglês, Projeto de Extensão)', () => {
+  it('match regardless of numerals or OCR noise', () => {
+    expect(namesMatch('Proj. de Extensão 1', 'Projeto de Extensão VI')).toBe(true);
+    expect(namesMatch('Proj. de Extensão VI', 'Projeto de Extensão V')).toBe(true);
+    expect(namesMatch('Inglês V', 'Inglês VI')).toBe(true);
+  });
+  it('never match each other or other subjects', () => {
+    expect(namesMatch('Inglês VI', 'Projeto de Extensão VI')).toBe(false);
+    expect(namesMatch('Projeto de Extensão VI', 'Projeto Integrador VI')).toBe(false);
+  });
+  it('the numeral guard still applies to everything else', () => {
+    expect(namesMatch('Eletiva VI', 'Eletiva II')).toBe(false);
   });
 });

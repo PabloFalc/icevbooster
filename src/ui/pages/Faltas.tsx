@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { percentualUsado, saldoAulas, saldoFaltas } from '../../domain/absences';
 import { classDays } from '../../domain/calendar';
-import { formatBr, formatNum, parseDecimal, todayIso } from '../../domain/dates';
+import { formatBrFull, formatNum, parseDecimal, todayIso } from '../../domain/dates';
 import type { SubjectPlan } from '../../domain/maxPlan';
 import type { Schedule, Subject, Weekday } from '../../domain/types';
 import {
@@ -10,6 +10,7 @@ import {
 } from '../../state/store';
 import { MONTHS, MonthGrid } from '../MonthGrid';
 import { Upload, UploadError } from '../Upload';
+import { Info } from '../Info';
 
 const NEED_FALTAS = 'Envie primeiro o print de faltas.';
 
@@ -75,18 +76,18 @@ function ChCell({ s }: { s: Subject }) {
           onCommit={(n) => updateSubject(s.id, { ch: n, chSource: 'manual' })}
         />
       )}
-      {s.ch === null && !other && <small class="hint">Escolha a carga horária</small>}
+      {s.ch === null && !other && <Info text="Escolha a carga horária" tone="warn" />}
     </div>
   );
 }
 
 // ---------- hero ----------
 
-function exceptionText(s: Subject, p: SubjectPlan, simulado: string): string {
-  if (p.saldoAulas === 0) return `${s.nome} (sem saldo)`;
+function exceptionReason(s: Subject, p: SubjectPlan, simulado: string): string {
+  if (p.saldoAulas === 0) return 'sem saldo';
   const st = state.value;
-  if (classDays(s.id, todayIso(), simulado, st.schedule, st.overrides).length === 0) return `${s.nome} (sem aulas até o simulado)`;
-  return `${s.nome} (saldo não cobre o último dia de aula)`;
+  if (classDays(s.id, todayIso(), simulado, st.schedule, st.overrides).length === 0) return 'sem aulas até o simulado';
+  return 'saldo não cobre o último dia de aula';
 }
 
 /** Why a subject is left out of the plan; null when it is planned. */
@@ -101,36 +102,37 @@ function excludedReason(s: Subject, planned: Set<string>, scheduled: Set<string>
 function Hero() {
   const p = plan.value;
   const { subjects, simulado } = state.value;
-  let sub: string | null = null;
-  let big: string;
-  let except: string | null = null;
-  if (p === 'sem_data') big = 'Informe a data do simulado';
-  else if (p === 'data_passada') {
-    big = simulado === todayIso() ? 'O simulado é hoje — não há mais aulas para planejar.' : 'A data do simulado já passou';
+  let message: string | null = null;
+  if (p === 'sem_data') message = 'Informe a data do simulado';
+  else if (p === 'data_passada') message = simulado === todayIso() ? 'O simulado é hoje' : 'A data do simulado já passou';
+  else if (p.subjects.length === 0) message = subjects.length === 0 ? 'Envie o print de faltas para começar' : 'Preencha a CH e o horário das matérias';
+  if (message !== null || typeof p !== 'object') {
+    return <section class="card glass hero"><div class="big">{message}</div></section>;
   }
-  else if (p.subjects.length === 0) {
-    big = subjects.length === 0 ? 'Envie o print de faltas para começar' : 'Preencha a CH e o horário das matérias';
-  } else {
-    sub = `Simulado em ${formatBr(simulado!)} · aproveitamento máximo`;
-    big = p.skipAllFrom ? `Pode faltar tudo a partir de ${formatBr(p.skipAllFrom)}` : 'Não dá para faltar tudo antes do simulado';
-    const names = p.exceptions.map((id) => {
-      const s = subjects.find((x) => x.id === id)!;
-      return exceptionText(s, p.subjects.find((x) => x.subjectId === id)!, simulado!);
-    });
-    // Subjects the plan can't compute stay visible: never shown as free to skip.
-    const planned = new Set(p.subjects.map((x) => x.subjectId));
-    const scheduled = scheduledIds(state.value.schedule);
-    for (const s of subjects) {
-      const why = excludedReason(s, planned, scheduled);
-      if (why) names.push(`${s.nome} (${why})`);
-    }
-    if (names.length) except = `${p.skipAllFrom ? 'exceto ' : ''}${names.join(', ')}`;
+  // Subjects the plan can't compute stay visible: never shown as free to skip.
+  const out: { nome: string; why: string }[] = p.exceptions.map((id) => {
+    const s = subjects.find((x) => x.id === id)!;
+    return { nome: s.nome, why: exceptionReason(s, p.subjects.find((x) => x.subjectId === id)!, simulado!) };
+  });
+  const planned = new Set(p.subjects.map((x) => x.subjectId));
+  const scheduled = scheduledIds(state.value.schedule);
+  for (const s of subjects) {
+    const why = excludedReason(s, planned, scheduled);
+    if (why) out.push({ nome: s.nome, why });
   }
   return (
     <section class="card glass hero">
-      {sub && <div class="s">{sub}</div>}
-      <div class="big">{big}</div>
-      {except && <div class="s except">{except}</div>}
+      <div>
+        <span class="hero-k">{p.skipAllFrom ? 'Pode faltar tudo a partir de' : 'Faltar tudo antes do simulado'}</span>
+        {p.skipAllFrom ? <b class="hero-date">{formatBrFull(p.skipAllFrom)}</b> : <div class="big">Não dá</div>}
+      </div>
+      <span class="chip">Simulado <b>{formatBrFull(simulado!)}</b></span>
+      {out.length > 0 && (
+        <div class="chips except">
+          <span class="chips-l">{p.skipAllFrom ? 'exceto' : 'por causa de'}</span>
+          {out.map((x) => <span class="chip" key={x.nome}><i class="dot bad" />{x.nome}<Info text={x.why} tone="bad" /></span>)}
+        </div>
+      )}
     </section>
   );
 }
@@ -140,7 +142,7 @@ function Hero() {
 function stopCell(s: Subject, sp: SubjectPlan | undefined) {
   if (s.conferir) return '—';
   if (sp?.allCovered) return 'já';
-  if (sp?.startDate) return formatBr(sp.startDate);
+  if (sp?.startDate) return formatBrFull(sp.startDate);
   if (saldoAulas(s) === 0) return <span class="bad">não pode</span>;
   return '—';
 }
@@ -161,13 +163,11 @@ function Row({ s, sp }: { s: Subject; sp: SubjectPlan | undefined }) {
       </td>
       <td>{pct === null || s.conferir ? '—' : fmtPct(pct)}</td>
       <td class={aulas === 0 && !s.conferir ? 'bad' : undefined}>
-        {aulas === null || faltas === null || s.conferir ? '—' : (
-          <>{plural(aulas, 'aula', 'aulas')} <small class="sub">({plural(faltas, 'falta', 'faltas')})</small></>
-        )}
+        {aulas === null || faltas === null || s.conferir ? '—' : <span title={plural(faltas, 'falta', 'faltas')}>{plural(aulas, 'aula', 'aulas')}</span>}
       </td>
       <td>
         {stopCell(s, sp)}
-        {!s.conferir && sp && sp.folgaAulas > 0 && <small class="folga">+{plural(sp.folgaAulas, 'aula', 'aulas')} de folga</small>}
+        {!s.conferir && sp && sp.folgaAulas > 0 && <small class="folga" title="aulas de folga para usar quando quiser">+{sp.folgaAulas} folga</small>}
       </td>
     </tr>
   );
@@ -176,12 +176,17 @@ function Row({ s, sp }: { s: Subject; sp: SubjectPlan | undefined }) {
 function Warnings() {
   const { subjects, schedule } = state.value;
   const scheduled = scheduledIds(schedule);
-  const msgs: string[] = subjects.filter((s) => s.conferir).map((s) => `Não consegui ler as faltas de ${s.nome} — confira e digite o valor.`);
-  if (subjects.length && scheduled.size === 0) msgs.push('Envie o print do horário ou preencha manualmente.');
-  else for (const s of subjects) if (!scheduled.has(s.id)) msgs.push(`${s.nome} não aparece no horário — preencha manualmente.`);
-  for (const n of horarioUnmatched.value) msgs.push(`${n} (horário) não corresponde a nenhuma matéria do print de faltas`);
-  if (!msgs.length) return null;
-  return <ul class="warnings">{msgs.map((m) => <li key={m}>{m}</li>)}</ul>;
+  const items: { label: string; tip: string }[] = subjects.filter((s) => s.conferir)
+    .map((s) => ({ label: s.nome, tip: 'Não consegui ler as faltas: confira e digite o valor.' }));
+  if (subjects.length && scheduled.size === 0) items.push({ label: 'Horário', tip: 'Envie o print do horário ou preencha manualmente.' });
+  else for (const s of subjects) if (!scheduled.has(s.id)) items.push({ label: s.nome, tip: 'Não aparece no horário: preencha manualmente.' });
+  for (const n of horarioUnmatched.value) items.push({ label: n, tip: 'Está no horário, mas não no print de faltas.' });
+  if (!items.length) return null;
+  return (
+    <div class="chips warnings">
+      {items.map((x) => <span class="chip" key={x.label + x.tip}><i class="dot" />{x.label}<Info text={x.tip} tone="warn" /></span>)}
+    </div>
+  );
 }
 
 function SubjectsTable() {
@@ -190,14 +195,20 @@ function SubjectsTable() {
   const byId = new Map(typeof p === 'object' ? p.subjects.map((x) => [x.subjectId, x]) : []);
   return (
     <section class="card glass">
-      <h3>Faltas por matéria</h3>
+      <h3><span class="ttl">Faltas por matéria</span></h3>
       {subjects.length === 0 ? (
         <p class="empty-note">Envie o print de faltas para ver suas matérias aqui.</p>
       ) : (
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>Disciplina</th><th>CH</th><th>Faltas</th><th>Pendentes</th><th>%</th><th>Restam</th><th>Parar a partir de</th></tr>
+              <tr>
+                <th>Disciplina</th><th>CH</th><th>Faltas</th>
+                <th>Pendentes <Info text="Faltas que o portal ainda não lançou" /></th>
+                <th>%</th>
+                <th>Restam <Info text="Aulas que você ainda pode faltar (cada aula = 2 faltas)" /></th>
+                <th>Parar em <Info text="A partir desta data dá para não ir mais até o simulado" /></th>
+              </tr>
             </thead>
             <tbody>{subjects.map((s) => <Row key={s.id} s={s} sp={byId.get(s.id)} />)}</tbody>
           </table>
@@ -221,16 +232,29 @@ function ScheduleGrid() {
   const filled = scheduledIds(schedule).size > 0;
   if (!open && !filled) return null;
   return (
-    <section class="card glass">
+    <section class="card glass sched-card">
       <h3>
-        Horário{' '}
+        <span class="ttl">Horário</span>
         {filled && (
           <button type="button" class="link-btn" aria-expanded={open} onClick={() => { scheduleOpen.value = !open; }}>
-            Conferir horário
+            {open ? 'Fechar' : 'Conferir'}
           </button>
         )}
       </h3>
       {open && subjects.length === 0 && <p class="empty-note">{NEED_FALTAS}</p>}
+      {!open && (
+        <div class="sched sched-ro">
+          <div />
+          {SLOTS.map((h) => <div key={h} class="sched-h">{h}</div>)}
+          {WEEKDAYS.map(([wd, dia]) => [
+            <div key={`d${wd}`} class="sched-d">{dia}</div>,
+            ...([0, 1] as const).map((slot) => {
+              const nome = subjects.find((x) => x.id === schedule[wd][slot])?.nome;
+              return <div key={`${wd}-${slot}`} class={`sched-c${nome ? '' : ' empty'}`} title={nome}>{nome ?? '—'}</div>;
+            }),
+          ])}
+        </div>
+      )}
       {open && <div class="sched">
         <div />
         {SLOTS.map((h) => <div key={h} class="sched-h">{h}</div>)}
@@ -281,36 +305,36 @@ export function Faltas() {
   return (
     <div class="faltas-page">
       <Hero />
-      <div class="col main-col">
-        <SubjectsTable />
-        <ScheduleGrid />
-      </div>
-      <div class="col side-col">
-        <section class="card glass prints">
-          <h3>Prints e datas</h3>
-          <Upload label="Print de faltas (obrigatório)" accept="image/*" onFile={onFaltas} />
+      <SubjectsTable />
+      <section class="card glass prints">
+        <h3><span class="ttl">Prints e datas</span></h3>
+        <Upload label="Print de faltas" accept="image/*" onFile={onFaltas} />
+        <Upload label="Print do histórico (opcional)" accept="image/*" onFile={onHistorico} />
+        <Upload label="Print do horário" accept="image/*" onFile={onHorario} />
+        <button type="button" class="link-btn" onClick={() => { scheduleOpen.value = true; }}>Preencher horário manualmente</button>
+        <div class="dates">
+          <label class="field">
+            <span>Simulado</span>
+            <input type="date" aria-label="Data do simulado" value={simulado ?? ''}
+              onChange={(e) => setSimulado(e.currentTarget.value || null)} />
+          </label>
           {faltasPrintDate && (
             <label class="field">
-              <span>Data do print de faltas</span>
+              <span>
+                Data do print{' '}
+                {faltasPrintDate !== today && <Info text="Confira se o portal já lançou todas as faltas." tone="warn" />}
+              </span>
               <input type="date" aria-label="Data do print de faltas" value={faltasPrintDate}
                 onChange={(e) => setFaltasPrintDate(e.currentTarget.value)} />
             </label>
           )}
-          {faltasPrintDate && faltasPrintDate !== today && <p class="warn">Confira se o portal já lançou todas as faltas.</p>}
-          <Upload label="Print do histórico (opcional)" accept="image/*" onFile={onHistorico} />
-          <Upload label="Print do horário" accept="image/*" onFile={onHorario} />
-          <button type="button" class="link-btn" onClick={() => { scheduleOpen.value = true; }}>Preencher manualmente</button>
-          <label class="field">
-            <span>Data do simulado</span>
-            <input type="date" aria-label="Data do simulado" value={simulado ?? ''}
-              onChange={(e) => setSimulado(e.currentTarget.value || null)} />
-          </label>
-        </section>
-        <section class="card glass mini">
-          <h3>{MONTHS[Number(today.slice(5, 7)) - 1]} <a class="link" href="#/calendario">Abrir calendário ›</a></h3>
-          <MonthGrid month={today} compact />
-        </section>
-      </div>
+        </div>
+      </section>
+      <ScheduleGrid />
+      <section class="card glass mini">
+        <h3><span class="ttl">{MONTHS[Number(today.slice(5, 7)) - 1]}</span> <a class="link" href="#/calendario">Abrir calendário ›</a></h3>
+        <MonthGrid month={today} compact />
+      </section>
     </div>
   );
 }

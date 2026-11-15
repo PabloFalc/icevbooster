@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitEqual, gradeOutlook, clampGrade } from './grades';
+import { splitEqual, gradeOutlook, clampGrade, gradingKind } from './grades';
 import type { GradeSlot } from './types';
 
 const C = (v: number): GradeSlot => ({ state: 'completa', value: v });
@@ -68,5 +68,36 @@ describe('clampGrade', () => {
   it('clamps to [0,10]', () => {
     expect(clampGrade(12)).toBe(10);
     expect(clampGrade(-1)).toBe(0);
+  });
+});
+
+describe('Projeto de Extensão (P1 = P2, P3 is a normal grade, no simulado)', () => {
+  const C = (v: number): GradeSlot => ({ state: 'completa', value: v });
+  const N: GradeSlot = { state: 'nao_feita', value: null };
+  it('gradingKind detects Extensão by name', () => {
+    expect(gradingKind('Projeto de Extensão VI')).toBe('extensao');
+    expect(gradingKind('Proj. de Extensão 1')).toBe('extensao');
+    expect(gradingKind('Marketing Digital')).toBe('normal');
+  });
+  it('P2 mirrors P1 and P3 has no acertos', () => {
+    const o = gradeOutlook({ p1: C(6), p2: N, p3: N }, 'extensao');
+    expect(o.atual).toBe(12);
+    expect(o.shares).toEqual({ p3: 9 });
+    expect(o.simuladoAcertos).toBeNull();
+    expect(o.status).toBe('andamento');
+  });
+  it('all open: equal split, P1 and P2 equal', () => {
+    const o = gradeOutlook({ p1: N, p2: N, p3: N }, 'extensao');
+    expect(o.shares).toEqual({ p1: 7, p2: 7, p3: 7 });
+    expect(o.simuladoAcertos).toBeNull();
+  });
+  it('ignores a different stored P2', () => {
+    expect(gradeOutlook({ p1: C(8), p2: C(2), p3: C(5) }, 'extensao').atual).toBe(21);
+  });
+  it('REC path uses the exact P3 share, no table', () => {
+    const o = gradeOutlook({ p1: C(2), p2: N, p3: N }, 'extensao');
+    expect(o.status).toBe('rec');
+    expect(o.shares).toEqual({ p3: 8 });
+    expect(o.recQuestoes).toBe(8);
   });
 });

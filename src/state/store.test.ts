@@ -306,3 +306,35 @@ describe('setGradeSlot', () => {
     expect(g()).toBeUndefined();
   });
 });
+
+describe('Projeto de Extensão: P2 always equals P1', () => {
+  const ext = () => state.value.grades[sub('Projeto de Extensão VI')!.id];
+  it('importNotas copies P1 into P2 (or P2 into P1 when only P2 was read)', () => {
+    importNotas([nota('Projeto de Extensão VI', 6, null, null)], '2026-11-14');
+    expect(ext().p2).toEqual(ext().p1);
+    expect(ext().p1).toEqual({ state: 'completa', value: 6 });
+    resetForTests();
+    importNotas([nota('Projeto de Extensão VI', null, 7, null)], '2026-11-14');
+    expect(ext().p1).toEqual({ state: 'completa', value: 7 });
+  });
+  it('setGradeSlot on P1 or P2 writes both; P3 stays independent', () => {
+    importNotas([nota('Projeto de Extensão VI', null)], '2026-11-14');
+    const id = sub('Projeto de Extensão VI')!.id;
+    setGradeSlot(id, 'p2', { state: 'completa', value: 8 });
+    expect(ext().p1).toEqual({ state: 'completa', value: 8 });
+    setGradeSlot(id, 'p3', { state: 'completa', value: 5 });
+    expect(ext().p1.value).toBe(8);
+  });
+  it('setComposite on P1 writes P2 too, and outlooks use the extensão rules', () => {
+    importNotas([nota('Projeto de Extensão VI', null)], '2026-11-14');
+    const id = sub('Projeto de Extensão VI')!.id;
+    setComposite(`${id}:p1`, { mode: 'pontos', parts: [{ nome: 'Prova', max: 10, tirei: 6 }] });
+    expect(ext().p2).toEqual({ state: 'completa', value: 6 });
+    expect(outlooks.value[id].shares).toEqual({ p3: 9 });
+    expect(outlooks.value[id].simuladoAcertos).toBeNull();
+  });
+  it('other subjects keep independent P1 and P2', () => {
+    importNotas([nota('Marketing Digital', 8.9)], '2026-11-14');
+    expect(state.value.grades[sub('Marketing Digital')!.id].p2.state).toBe('nao_feita');
+  });
+});

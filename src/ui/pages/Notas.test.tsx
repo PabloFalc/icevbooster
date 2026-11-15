@@ -30,14 +30,15 @@ describe('Notas page', () => {
     importNotas([nota('Marketing Digital', 8.9, 1)], '2026-11-14');
     setGradeSlot('marketing-digital', 'p2', { state: 'incompleta', value: 1 });
     render(<Notas />);
-    expect(screen.getByText('Notas lidas do print de 14/11')).toBeTruthy();
+    expect(document.querySelector('.upl-t')?.textContent).toBe('Print de 14/11/2026i');
     const c = within(card('Marketing Digital'));
     expect(c.getByText('9,90')).toBeTruthy();
-    expect(c.getByText('11,10')).toBeTruthy();
-    expect(c.getByText(/27 acertos/).textContent).toContain('(5,62)');
+    expect(c.getByText('27')).toBeTruthy(); // simulado tile: acertos
+    expect(c.getByText('acertos · 5,62')).toBeTruthy();
+    expect(c.getByText('5,55')).toBeTruthy(); // P2 tile
     expect(c.getByText('em andamento')).toBeTruthy();
-    expect(c.getByText(/pode ganhar mais 9,00/)).toBeTruthy();
-    expect(c.getByText('Detalhar na calculadora ›').getAttribute('href')).toBe('#/calculadora?m=marketing-digital&p=p2');
+    expect(c.getByText('+9,00')).toBeTruthy();
+    expect(c.getByText('Calculadora ›').getAttribute('href')).toBe('#/calculadora?m=marketing-digital&p=p2');
   });
 
   it('needed amounts round up, current and achievable figures round down', () => {
@@ -46,18 +47,17 @@ describe('Notas page', () => {
     render(<Notas />);
     const c = within(card('Marketing Digital'));
     expect(c.getByText('0,97')).toBeTruthy(); // pontos atuais
-    expect(c.getByText('20,03')).toBeTruthy(); // faltam p/ 21
-    expect(c.getByText(/pode ganhar mais 9,02/)).toBeTruthy();
-    expect(c.getAllByText('6,68')).toHaveLength(3); // 20,024 / 3 per prova
-    expect(c.getByText(/no que falta da P1 \(de 9,02\)/)).toBeTruthy();
+    expect(c.getByText('+9,02')).toBeTruthy();
+    expect(c.getAllByText('6,68')).toHaveLength(2); // 20,024 / 3 per prova: P1 and P2 tiles (simulado shows acertos)
+    expect(c.getByText('de 9,02')).toBeTruthy();
   });
 
   it('REC path: máx. rounds down, REC shares round up', () => {
     importNotas([nota('Difícil', 0.976)], '2026-11-14');
     render(<Notas />);
     const c = within(card('Difícil'));
-    expect(c.getByText(/Passar direto não é possível \(máx\. 20,97\)/)).toBeTruthy();
-    expect(c.getAllByText('5,52')).toHaveLength(2); // 11,024 / 2
+    expect(c.getByText('Para ir à REC')).toBeTruthy();
+    expect(c.getAllByText('5,52')).toHaveLength(1); // 11,024 / 2: P2 tile (simulado shows acertos)
   });
 
   it('só com REC path', () => {
@@ -65,18 +65,17 @@ describe('Notas page', () => {
     render(<Notas />);
     const c = within(card('Difícil'));
     expect(c.getByText('só com REC')).toBeTruthy();
-    expect(c.getByText(/Para ir à REC \(média ≥ 4\)/)).toBeTruthy();
-    expect(c.getByText(/Passar direto não é possível \(máx\. 12,50\)/)).toBeTruthy();
+    expect(c.getByText('Para ir à REC')).toBeTruthy();
     expect(c.getByText('8/10')).toBeTruthy();
-    expect(c.getByText(/46 acertos/)).toBeTruthy();
+    expect(c.getByText('46')).toBeTruthy();
   });
 
   it('aprovado and reprovado copy', () => {
     importNotas([nota('Boa', 10, 10, 7), nota('Ruim', 1, 1, 1)], '2026-11-14');
     render(<Notas />);
-    expect(within(card('Boa')).getByText('Aprovado: já tem os 21 pontos.')).toBeTruthy();
+    expect(within(card('Boa')).getByText('Aprovado')).toBeTruthy();
     expect(within(card('Boa')).getByText('aprovado')).toBeTruthy();
-    expect(within(card('Ruim')).getByText(/Reprovado por nota/)).toBeTruthy();
+    expect(within(card('Ruim')).getByText('Reprovado')).toBeTruthy();
     expect(within(card('Ruim')).getByText('reprovado')).toBeTruthy();
   });
 
@@ -130,14 +129,25 @@ describe('Notas page', () => {
   it('detail link points at P1 when P2 is completa and P1 is not', () => {
     importNotas([nota('Marketing Digital', null, 5)], '2026-11-14');
     render(<Notas />);
-    expect(screen.getByText('Detalhar na calculadora ›').getAttribute('href')).toBe('#/calculadora?m=marketing-digital&p=p1');
+    expect(screen.getByText('Calculadora ›').getAttribute('href')).toBe('#/calculadora?m=marketing-digital&p=p1');
   });
 
   it('subject without grades shows all slots não feita', () => {
     state.value = { ...state.value, subjects: [{ id: 'x', nome: 'Sem notas', faltas: 0, pendentes: 0, percentual: null, ch: 36, chSource: 'manual' }] };
     render(<Notas />);
     expect(within(card('Sem notas')).getAllByText('não feita')).toHaveLength(3);
-    expect(within(card('Sem notas')).getByText('21,00')).toBeTruthy();
+    expect(within(card('Sem notas')).getAllByText('7,00')).toHaveLength(2);
+    expect(within(card('Sem notas')).getByText('0,00')).toBeTruthy();
+  });
+
+  it('Projeto de Extensão: one P1 = P2 box, P3 without simulado', () => {
+    importNotas([nota('Projeto de Extensão VI', 6)], '2026-11-14');
+    render(<Notas />);
+    const c = within(card('Projeto de Extensão VI'));
+    expect(c.getAllByText('P1 = P2')).toHaveLength(1);
+    expect(c.queryByText(/simulado/i)).toBeNull();
+    expect(c.getByText('9,00')).toBeTruthy(); // P3 tile: 21 − 2 × 6
+    expect(c.getByText('12,00')).toBeTruthy(); // progress
   });
 
   it('uploads a notas print through local OCR and imports it', async () => {

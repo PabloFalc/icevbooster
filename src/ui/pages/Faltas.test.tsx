@@ -27,7 +27,13 @@ function seed(subjects: Subject[] = base, simulado: string | null = '2026-12-10'
   setSimulado(simulado);
 }
 
-const row = (nome: string) => screen.getByText(nome).closest('tr') as HTMLElement;
+const row = (nome: string) => within(document.querySelector('table') as HTMLElement).getByText(nome).closest('tr') as HTMLElement;
+/** "Nome (motivo)" for each chip, motivo from its info dot. */
+const chips = (sel: string) => [...document.querySelectorAll(`${sel} .chip`)].map((c) => {
+  const info = c.querySelector('.info');
+  return `${c.textContent!.slice(0, info ? -1 : undefined)} (${info?.getAttribute('aria-label')})`;
+});
+const hero = () => document.querySelector('.hero') as HTMLElement;
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
@@ -41,10 +47,11 @@ describe('Faltas page', () => {
   it('shows the skip plan hero and table', () => {
     seed();
     render(<Faltas />);
-    expect(screen.getByText(/Pode faltar tudo a partir de/).textContent).toContain('25/11');
-    expect(screen.getByText(/exceto Eletiva II/).textContent).toBe('exceto Eletiva II (sem saldo)');
-    expect(row('Marketing Digital').textContent).toContain('2 aulas');
-    expect(row('Marketing Digital').textContent).toContain('2 aulas (5 faltas)');
+    expect(screen.getByText('Pode faltar tudo a partir de')).toBeTruthy();
+    expect(hero().querySelector('.hero-date')?.textContent).toBe('25/11/2026');
+    expect(hero().textContent).toContain('Simulado 10/12/2026');
+    expect(chips('.hero .except')).toEqual(['Eletiva II (sem saldo)']);
+    expect(within(row('Marketing Digital')).getByText('2 aulas').getAttribute('title')).toBe('5 faltas');
     expect(row('Marketing Digital').textContent).toContain('11,1%');
   });
 
@@ -59,33 +66,33 @@ describe('Faltas page', () => {
     setSimulado('2026-11-16');
     cleanup();
     render(<Faltas />);
-    expect(screen.getByText('O simulado é hoje — não há mais aulas para planejar.')).toBeTruthy();
+    expect(screen.getByText('O simulado é hoje')).toBeTruthy();
   });
 
   it('hero lists subjects left out of the plan with their reason, never as free days', () => {
     const sch: Schedule = { ...schedule, 1: ['redes', 'novo'] };
     seed([...base, sub('ingles', 'Inglês VI', 36, 0), sub('novo', 'Estatística', null, 2), sub('redes', 'Redes', 36, 0, { conferir: true })], '2026-12-10', sch);
     render(<Faltas />);
-    expect(screen.getByText(/Pode faltar tudo a partir de/).textContent).toContain('25/11');
-    expect(screen.getByText(/^exceto /).textContent).toBe(
-      'exceto Eletiva II (sem saldo), Inglês VI (sem horário), Estatística (sem carga horária), Redes (confira as faltas)',
-    );
+    expect(hero().querySelector('.hero-date')?.textContent).toBe('25/11/2026');
+    expect(chips('.hero .except')).toEqual([
+      'Eletiva II (sem saldo)', 'Inglês VI (sem horário)', 'Estatística (sem carga horária)', 'Redes (confira as faltas)',
+    ]);
   });
 
   it('hero names excluded subjects even when nothing can be skipped', () => {
     seed([sub('eletiva', 'Eletiva II', 36, 9), sub('redes', 'Redes', 36, 0, { conferir: true })], '2026-12-10', { ...schedule, 1: ['redes', null] });
     render(<Faltas />);
-    expect(screen.getByText('Não dá para faltar tudo antes do simulado')).toBeTruthy();
-    expect(screen.getByText('Eletiva II (sem saldo), Redes (confira as faltas)')).toBeTruthy();
+    expect(screen.getByText('Não dá')).toBeTruthy();
+    expect(chips('.hero .except')).toEqual(['Eletiva II (sem saldo)', 'Redes (confira as faltas)']);
   });
 
   it('"Parar a partir de" column: date, já, não pode, folga', () => {
     seed();
     render(<Faltas />);
-    expect(row('Pesquisa Operacional').textContent).toContain('25/11');
+    expect(row('Pesquisa Operacional').textContent).toContain('25/11/2026');
     expect(row('Marketing Digital').textContent).toContain('já'); // saldo 2 covers 27/11 and 04/12
     expect(row('Gestão de Projetos').textContent).toContain('já');
-    expect(row('Gestão de Projetos').textContent).toContain('+3 aulas de folga');
+    expect(row('Gestão de Projetos').textContent).toContain('+3 folga');
     expect(row('Eletiva II').textContent).toContain('não pode');
   });
 
@@ -93,7 +100,7 @@ describe('Faltas page', () => {
     // Gestão: 72h, 16 faltas → saldo 1 aula, but Thursdays have 2 classes.
     seed([sub('gestao', 'Gestão de Projetos', 72, 16), sub('marketing', 'Marketing Digital', 36, 0), sub('po', 'Pesquisa Operacional', 72, 0)], '2026-11-20');
     render(<Faltas />);
-    const line = screen.getByText(/^exceto /).textContent;
+    const line = chips('.hero .except');
     expect(line).toContain('Gestão de Projetos (saldo não cobre o último dia de aula)');
     // Marketing is on Friday; 20/11 is the simulado (and a holiday), so no class left.
     expect(line).toContain('Marketing Digital (sem aulas até o simulado)');
@@ -103,10 +110,11 @@ describe('Faltas page', () => {
   it('flags conferir, missing CH and subjects missing from the schedule', () => {
     seed([...base, sub('ingles', 'Inglês VI', 36, 0), sub('novo', 'Estatística', null, 2), sub('gp', 'Redes', 36, 0, { conferir: true })]);
     render(<Faltas />);
-    expect(screen.getByText('Não consegui ler as faltas de Redes — confira e digite o valor.')).toBeTruthy();
+    const warn = chips('.warnings');
+    expect(warn).toContain('Redes (Não consegui ler as faltas: confira e digite o valor.)');
     expect(row('Redes').className).toContain('conferir');
-    expect(within(row('Estatística')).getByText('Escolha a carga horária')).toBeTruthy();
-    expect(screen.getByText('Inglês VI não aparece no horário — preencha manualmente.')).toBeTruthy();
+    expect(within(row('Estatística')).getByLabelText('Escolha a carga horária')).toBeTruthy();
+    expect(warn).toContain('Inglês VI (Não aparece no horário: preencha manualmente.)');
   });
 
   it('edits faltas with comma decimals and never writes NaN', () => {
@@ -142,16 +150,16 @@ describe('Faltas page', () => {
   it('warns when the print date is not today', () => {
     seed();
     render(<Faltas />);
-    expect(screen.queryByText('Confira se o portal já lançou todas as faltas.')).toBeNull();
+    expect(screen.queryByLabelText('Confira se o portal já lançou todas as faltas.')).toBeNull();
     fireEvent.change(screen.getByLabelText('Data do print de faltas'), { target: { value: '2026-11-10' } });
-    expect(screen.getByText('Confira se o portal já lançou todas as faltas.')).toBeTruthy();
+    expect(screen.getByLabelText('Confira se o portal já lançou todas as faltas.')).toBeTruthy();
   });
 
   it('uploads a faltas print through local OCR', async () => {
     ocr.runOcr.mockResolvedValue([]);
     parsers.parseFaltas.mockReturnValue([{ nome: 'Marketing Digital', faltas: 4, percentual: 11.11 }]);
     render(<Faltas />);
-    expect(screen.getAllByText('Tire o print com a tabela completa visível — todas as linhas e colunas.').length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText('Tire o print com a tabela completa visível — todas as linhas e colunas.').length).toBeGreaterThan(0);
     const file = new File(['x'], 'faltas.png', { type: 'image/png' });
     fireEvent.change(screen.getByLabelText(/Print de faltas/), { target: { files: [file] } });
     expect(screen.getByText('Lendo o print…')).toBeTruthy();
@@ -187,19 +195,20 @@ describe('Faltas page', () => {
     parsers.parseHorario.mockReturnValue({ cells: [{ weekday: 5, slot: 0, nome: 'Marketing Digital' }, { weekday: 1, slot: 0, nome: 'Eletiva VI' }], ok: true });
     render(<Faltas />);
     fireEvent.change(screen.getByLabelText(/Print do horário/), { target: { files: [new File(['x'], 'h.png', { type: 'image/png' })] } });
-    await screen.findByText('Eletiva VI (horário) não corresponde a nenhuma matéria do print de faltas');
+    await waitFor(() => expect(chips('.warnings')).toContain('Eletiva VI (Está no horário, mas não no print de faltas.)'));
     expect((screen.getByLabelText('Sex 18:20') as HTMLSelectElement).value).toBe('marketing');
     cleanup();
     render(<Faltas />); // back from another tab
     expect(screen.getByLabelText('Sex 18:20')).toBeTruthy();
-    expect(screen.getByText('Eletiva VI (horário) não corresponde a nenhuma matéria do print de faltas')).toBeTruthy();
+    expect(chips('.warnings')).toContain('Eletiva VI (Está no horário, mas não no print de faltas.)');
   });
 
-  it('a non-empty schedule is behind a "Conferir horário" toggle', () => {
+  it('a non-empty schedule shows read-only, with a "Conferir" toggle to edit', () => {
     seed();
     render(<Faltas />);
     expect(screen.queryByLabelText('Seg 18:20')).toBeNull();
-    const toggle = screen.getByRole('button', { name: 'Conferir horário' });
+    expect(document.querySelector('.sched-ro')?.textContent).toContain('Gestão de Projetos');
+    const toggle = screen.getByRole('button', { name: 'Conferir' });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(toggle);
     expect(screen.getByLabelText('Seg 18:20')).toBeTruthy();
@@ -227,7 +236,7 @@ describe('Faltas page', () => {
   it('"Preencher manualmente" opens the grid', () => {
     seed();
     render(<Faltas />);
-    fireEvent.click(screen.getByText('Preencher manualmente'));
+    fireEvent.click(screen.getByText('Preencher horário manualmente'));
     const sel = screen.getByLabelText('Qui 20:20') as HTMLSelectElement;
     expect(sel.value).toBe('gestao');
     expect([...sel.options].map((o) => o.textContent)).toContain('—');

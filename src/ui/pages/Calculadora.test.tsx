@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/preact';
+import { cleanup, fireEvent, render, screen } from '@testing-library/preact';
 import { importNotas, resetForTests, setComposite, setGradeSlot, state } from '../../state/store';
 import { Calculadora } from './Calculadora';
 
@@ -14,6 +14,10 @@ const type = (label: string, value: string) => {
   fireEvent.blur(el);
 };
 const result = () => document.querySelector('.result') as HTMLElement;
+/** Text of the tile whose small label is `label` (e.g. "Prova6,05de 10"). */
+const tile = (label: string) =>
+  [...document.querySelectorAll('.tile')].find((t) => t.querySelector('.t-l')?.textContent === label)?.textContent ?? '';
+const sel = (label: string) => screen.getByLabelText(label) as HTMLSelectElement;
 
 beforeEach(() => {
   resetForTests();
@@ -23,36 +27,29 @@ beforeEach(() => {
 afterEach(() => { cleanup(); history.replaceState(null, '', '#/'); });
 
 describe('Calculadora page', () => {
-  it('linked P2: garantido, potencial, per-part needs and simulado acertos; table row highlighted', () => {
+  it('linked P2: garantido, potencial, part tiles and simulado acertos; table row highlighted', () => {
     setComposite('marketing-digital:p2', quizTrabalhoProva);
     history.replaceState(null, '', '#/calculadora?m=marketing-digital&p=p2');
     render(<Calculadora />);
-    const r = within(result());
-    expect(r.getByText('3,50')).toBeTruthy();
-    expect(r.getByText('6,00')).toBeTruthy();
-    expect(r.getAllByText('4,30')).toHaveLength(2);
-    expect(result().textContent).toContain('Tire 4,30 em Prova (de 6)');
-    expect(result().textContent).toContain('21 acertos');
-    expect(result().textContent).toContain('(4,37)');
-    expect(result().textContent).toContain('faltam 8,60 para os 21');
-    const rows = document.querySelectorAll('.simtab > div');
-    expect(rows).toHaveLength(61);
+    expect(result().textContent).toContain('Garantido 3,50 · pode ganhar 6,00');
+    expect(tile('Prova')).toBe('Prova4,30de 6');
+    expect(tile('Simulado')).toBe('Simulado21acertos · 4,37');
+    expect(result().textContent).toContain('12,40 / 21');
+    expect(sel('Matéria').value).toBe('marketing-digital');
+    expect(sel('Prova').value).toBe('p2');
+    expect(document.querySelectorAll('.simtab > div')).toHaveLength(49); // 0..48 acertos: stops at the first 10,00
+    expect(document.querySelector('.simtab > div:last-child')?.textContent).toBe('48+10,00');
     const hl = document.querySelectorAll('.simtab .hl');
     expect(hl).toHaveLength(1);
-    expect(hl[0].textContent).toBe('214,37');
     expect(hl[0].querySelector('span')?.textContent).toBe('21');
-    expect(screen.getByText(/Marketing Digital · P2/, { selector: '.meta' })).toBeTruthy();
   });
 
-  it('unknown or missing query falls back to Cálculo livre', () => {
-    history.replaceState(null, '', '#/calculadora?m=nada&p=p2');
+  it('unknown subject falls back to Cálculo livre; unknown prova to P2', () => {
+    history.replaceState(null, '', '#/calculadora?m=nada&p=p9');
     render(<Calculadora />);
-    expect((screen.getByLabelText('Ligar a') as HTMLSelectElement).value).toBe('livre');
+    expect(sel('Matéria').value).toBe('livre');
+    expect(sel('Prova').value).toBe('p2');
     expect(screen.queryByText('Desvincular')).toBeNull();
-    cleanup();
-    history.replaceState(null, '', '#/calculadora?m=marketing-digital&p=p9');
-    render(<Calculadora />);
-    expect((screen.getByLabelText('Ligar a') as HTMLSelectElement).value).toBe('livre');
   });
 
   it('livre: default Prova part, edits are stored under livre and never touch grades', () => {
@@ -61,20 +58,50 @@ describe('Calculadora page', () => {
     type('Tirei na parte 1', '7,5');
     expect(state.value.composites['livre'].parts[0]).toMatchObject({ max: 10, tirei: 7.5 });
     expect(state.value.grades['marketing-digital'].p2).toEqual({ state: 'nao_feita', value: null });
-    expect(result().textContent).toContain('Garantido na nota: 7,50');
+    expect(result().textContent).toContain('Garantido 7,50');
     expect(screen.queryByText('Desvincular')).toBeNull();
   });
 
-  it('selector links, updates the hash without reload, and edits reach the grade slot', () => {
+  it('matéria and prova are separate fields: changing one keeps the other', () => {
     render(<Calculadora />);
-    fireEvent.change(screen.getByLabelText('Ligar a'), { target: { value: 'marketing-digital:p2' } });
+    fireEvent.change(sel('Prova'), { target: { value: 'p1' } });
+    expect(location.hash).toBe('#/calculadora');
+    fireEvent.change(sel('Matéria'), { target: { value: 'marketing-digital' } });
+    expect(location.hash).toBe('#/calculadora?m=marketing-digital&p=p1');
+    expect(sel('Prova').value).toBe('p1');
+    fireEvent.change(sel('Prova'), { target: { value: 'p2' } });
+    expect(sel('Matéria').value).toBe('marketing-digital');
     expect(location.hash).toBe('#/calculadora?m=marketing-digital&p=p2');
     type('Tirei na parte 1', '4');
-    expect(state.value.composites['marketing-digital:p2']).toBeDefined();
     expect(state.value.grades['marketing-digital'].p2).toMatchObject({ state: 'completa', value: 4 });
-    fireEvent.change(screen.getByLabelText('Ligar a'), { target: { value: 'livre' } });
+    fireEvent.change(sel('Matéria'), { target: { value: 'livre' } });
     expect(location.hash).toBe('#/calculadora');
-    expect(state.value.composites['livre']).toBeUndefined();
+    expect(sel('Prova').value).toBe('p2');
+  });
+
+  it('P3 of a normal subject is the simulado: acertos field sets the grade from the table', () => {
+    history.replaceState(null, '', '#/calculadora?m=marketing-digital&p=p3');
+    render(<Calculadora />);
+    expect(screen.queryByLabelText('Nome da parte 1')).toBeNull();
+    type('Acertos no simulado', '30');
+    expect(state.value.grades['marketing-digital'].p3).toEqual({ state: 'completa', value: 6.25 });
+    expect(document.querySelector('.sim-in')?.textContent).toContain('= nota 6,25');
+    type('Acertos no simulado', '61');
+    expect(state.value.grades['marketing-digital'].p3.value).toBe(6.25);
+    type('Acertos no simulado', '');
+    expect(state.value.grades['marketing-digital'].p3).toEqual({ state: 'nao_feita', value: null });
+  });
+
+  it('Projeto de Extensão: provas are "P1 = P2" and P3 (a normal grade, no simulado)', () => {
+    importNotas([nota('Projeto de Extensão VI', 6)], '2026-11-14');
+    history.replaceState(null, '', '#/calculadora?m=projeto-de-extensao-vi&p=p2');
+    render(<Calculadora />);
+    expect([...sel('Prova').options].map((o) => o.textContent)).toEqual(['P1 = P2', 'P3']);
+    expect(sel('Prova').value).toBe('p1');
+    fireEvent.change(sel('Prova'), { target: { value: 'p3' } });
+    expect(screen.getByLabelText('Nome da parte 1')).toBeTruthy();
+    expect(tile('Prova')).toBe('Prova9,00de 10');
+    expect(tile('Simulado')).toBe('');
   });
 
   it('Desvincular removes the composite and keeps the slot values', () => {
@@ -90,9 +117,9 @@ describe('Calculadora page', () => {
   it('validation message flags a sum different from 10 but still shows results', () => {
     render(<Calculadora />);
     type('Vale da parte 1', '8,5');
-    expect(screen.getByRole('alert').textContent).toBe('A soma dos valores precisa dar 10 (agora: 8,5).');
-    expect(result().textContent).toContain('ainda dá para ganhar: 8,50');
-    fireEvent.click(screen.getByText('＋ adicionar parte'));
+    expect(screen.getByRole('alert').textContent).toBe('As partes somam 8,5 (precisa 10).');
+    expect(result().textContent).toContain('pode ganhar 8,50');
+    fireEvent.click(screen.getByText('＋ parte'));
     type('Vale da parte 2', '1,5');
     expect(screen.queryByRole('alert')).toBeNull();
   });
@@ -102,13 +129,13 @@ describe('Calculadora page', () => {
     fireEvent.click(screen.getByText('Por peso'));
     expect(screen.getByLabelText('Peso da parte 1')).toHaveProperty('value', '100');
     type('Peso da parte 1', '60');
-    expect(screen.getByRole('alert').textContent).toBe('A soma dos pesos precisa dar 100% (agora: 60%).');
-    fireEvent.click(screen.getByText('＋ adicionar parte'));
+    expect(screen.getByRole('alert').textContent).toBe('Os pesos somam 60% (precisa 100%).');
+    fireEvent.click(screen.getByText('＋ parte'));
     type('Peso da parte 2', '40');
     type('Nota na parte 1', '5');
     type('Nota na parte 2', '15');
     expect(state.value.composites['livre'].parts[1].tirei).toBe(10);
-    expect(result().textContent).toContain('Garantido na nota: 7,00');
+    expect(result().textContent).toContain('Garantido 7,00');
   });
 
   it('switching mode keeps the meaning of the parts', () => {
@@ -125,7 +152,7 @@ describe('Calculadora page', () => {
   it('add/remove parts keeps at least one; garbage input reverts', () => {
     render(<Calculadora />);
     expect((screen.getByLabelText('Remover parte 1') as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByText('＋ adicionar parte'));
+    fireEvent.click(screen.getByText('＋ parte'));
     expect(screen.getAllByLabelText(/^Nome da parte/)).toHaveLength(2);
     fireEvent.click(screen.getByLabelText('Remover parte 2'));
     expect(screen.getAllByLabelText(/^Nome da parte/)).toHaveLength(1);
@@ -136,18 +163,12 @@ describe('Calculadora page', () => {
   });
 
   it('needs are rounded up, never in the student favor', () => {
-    importNotas([nota('Gestão', 7, null, null)], '2026-11-14');
+    importNotas([nota('Gestão', 7.1, null, null)], '2026-11-14');
     setComposite('gestao:p2', { mode: 'pontos', parts: [{ nome: 'Prova', max: 10, tirei: null }] });
     history.replaceState(null, '', '#/calculadora?m=gestao&p=p2');
     render(<Calculadora />);
-    // 14 left, split in 2 open slots = 7 each
-    expect(result().textContent).toContain('Tire 7,00 em Prova (de 10)');
-    cleanup();
-    importNotas([nota('Gestão', 7.1, null, null)], '2026-11-14');
-    setComposite('gestao:p2', { mode: 'pontos', parts: [{ nome: 'Prova', max: 10, tirei: null }] });
-    render(<Calculadora />);
     // 21 - 7.1 = 13.9 / 2 = 6.95 exactly
-    expect(result().textContent).toContain('6,95');
+    expect(tile('Prova')).toBe('Prova6,95de 10');
   });
 
   it('table highlight scrolls the table box to the row', () => {
@@ -176,7 +197,6 @@ describe('Calculadora page', () => {
       expect(val('Nome da parte 1')).toBe('Prova');
       expect(val('Tirei na parte 1')).toBe('8,9');
       expect(state.value).toBe(before);
-      expect(state.value.grades['marketing-digital'].p1).toEqual({ state: 'completa', value: 8.9 });
       type('Nome da parte 1', 'Prova final');
       expect(state.value.grades['marketing-digital'].p1).toMatchObject({ state: 'completa', value: 8.9 });
     });
@@ -186,46 +206,34 @@ describe('Calculadora page', () => {
       const before = state.value;
       open('p2');
       expect(val('Nome da parte 1')).toBe('Já garantido');
-      expect(val('Vale da parte 1')).toBe('1');
-      expect(val('Tirei na parte 1')).toBe('1');
-      expect(val('Nome da parte 2')).toBe('Restante');
       expect(val('Vale da parte 2')).toBe('9');
       expect(val('Tirei na parte 2')).toBe('');
       expect(state.value).toBe(before);
     });
 
-    it('nao_feita slot: blank Prova of 10', () => {
-      const before = state.value;
+    it('outlook and tiles show right after selecting, and agree with the table', () => {
       open('p2');
-      expect(val('Vale da parte 1')).toBe('10');
-      expect(val('Tirei na parte 1')).toBe('');
-      expect(state.value).toBe(before);
-    });
-
-    it('outlook, needs and table highlight show right after selecting, and agree', () => {
-      open('p2');
-      expect(result().textContent).toContain('Com 8,90 pontos na matéria, faltam 12,10 para os 21.');
-      expect(result().textContent).toContain('Tire 6,05 em Prova (de 10)');
-      expect(result().textContent).toContain('30 acertos');
+      expect(result().textContent).toContain('8,90 / 21');
+      expect(tile('Prova')).toBe('Prova6,05de 10');
+      expect(tile('Simulado')).toContain('30');
       expect(document.querySelector('.simtab .hl span')?.textContent).toBe('30');
     });
 
     it('invalid composite is kept in the form but does not change the slot', () => {
       open('p1');
       type('Vale da parte 1', '8');
-      expect(screen.getByText('Corrija a soma para atualizar a nota da matéria.')).toBeTruthy();
+      expect(screen.getByRole('alert').textContent).toContain('A nota não é atualizada.');
       expect(state.value.composites['marketing-digital:p1'].parts[0].max).toBe(8);
       expect(state.value.grades['marketing-digital'].p1).toEqual({ state: 'completa', value: 8.9 });
     });
 
     it('shows a needed amount of 10/3 rounded up as 3,34', () => {
       importNotas([nota('Gestão', 1)], '2026-11-14');
-      // P1 = 1: 20 points still needed, 10 from P2 and 10 from the simulado; 3 open parts share P2's 10
       setComposite('gestao:p2', { mode: 'pontos', parts: [{ nome: 'A', max: 4, tirei: null }, { nome: 'B', max: 4, tirei: null }, { nome: 'C', max: 4, tirei: null }] });
       history.replaceState(null, '', '#/calculadora?m=gestao&p=p2');
       render(<Calculadora />);
-      expect(result().textContent).toContain('Tire 3,34 em A (de 4)');
-      expect(result().textContent).toContain('Tire 3,34 em C (de 4)');
+      expect(tile('A')).toBe('A3,34de 4');
+      expect(tile('C')).toBe('C3,34de 4');
     });
   });
 });

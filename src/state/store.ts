@@ -5,7 +5,7 @@ import { todayIso } from '../domain/dates';
 import { holidaysFor } from '../domain/holidays';
 import { compositeSummary, compositeToSlot } from '../domain/composite';
 import type { Composite } from '../domain/composite';
-import { clampGrade, gradeOutlook } from '../domain/grades';
+import { clampGrade, gradeOutlook, gradingKind } from '../domain/grades';
 import type { Outlook } from '../domain/grades';
 import { planAll } from '../domain/maxPlan';
 import type { OverallPlan, PlanError } from '../domain/maxPlan';
@@ -227,6 +227,14 @@ const emptyGrades = (): SubjectGrades => ({
   p1: { state: 'nao_feita', value: null }, p2: { state: 'nao_feita', value: null }, p3: { state: 'nao_feita', value: null },
 });
 
+type SlotKey = 'p1' | 'p2' | 'p3';
+
+/** Writes one grade slot; for Projeto de Extensão P1 and P2 are the same grade, so either one writes both. */
+function withSlot(sub: Subject | undefined, g: SubjectGrades, key: SlotKey, slot: GradeSlot): SubjectGrades {
+  if (sub && key !== 'p3' && gradingKind(sub.nome) === 'extensao') return { ...g, p1: slot, p2: slot };
+  return { ...g, [key]: slot };
+}
+
 export function importNotas(rows: NotasRow[], printDate: Iso): void {
   update((s) => {
     const subjects = s.subjects.map((x) => ({ ...x }));
@@ -235,10 +243,15 @@ export function importNotas(rows: NotasRow[], printDate: Iso): void {
     const grades = { ...s.grades };
     rows.forEach((r, i) => {
       const sub = subs[i];
-      const g = { ...(grades[sub.id] ?? emptyGrades()) };
-      if (!s.composites[`${sub.id}:p1`]) g.p1 = slotFrom(r.p1);
-      if (!s.composites[`${sub.id}:p2`]) g.p2 = slotFrom(r.p2);
-      g.p3 = slotFrom(r.p3);
+      let g = { ...(grades[sub.id] ?? emptyGrades()) };
+      const locked = (k: SlotKey) => Boolean(s.composites[`${sub.id}:${k}`]);
+      if (gradingKind(sub.nome) === 'extensao') {
+        if (!locked('p1') && !locked('p2')) g = withSlot(sub, g, 'p1', slotFrom(r.p1 ?? r.p2));
+      } else {
+        if (!locked('p1')) g.p1 = slotFrom(r.p1);
+        if (!locked('p2')) g.p2 = slotFrom(r.p2);
+      }
+      if (!locked('p3')) g.p3 = slotFrom(r.p3);
       grades[sub.id] = g;
     });
     return { ...s, subjects, grades, notasPrintDate: printDate };
@@ -253,10 +266,10 @@ export function setComposite(key: string, c: Composite): void {
     const next: AppState = { ...s, composites: { ...s.composites, [key]: c } };
     const i = key.lastIndexOf(':');
     const slot = key.slice(i + 1);
-    if (i > 0 && (slot === 'p1' || slot === 'p2') && compositeSummary(c).valid) {
+    if (i > 0 && (slot === 'p1' || slot === 'p2' || slot === 'p3') && compositeSummary(c).valid) {
       const id = key.slice(0, i);
       const g = s.grades[id] ?? emptyGrades();
-      next.grades = { ...s.grades, [id]: { ...g, [slot]: compositeToSlot(c) } };
+      next.grades = { ...s.grades, [id]: withSlot(s.subjects.find((x) => x.id === id), g, slot, compositeToSlot(c)) };
     }
     return next;
   });
@@ -309,9 +322,10 @@ export function setGradeSlot(subjectId: string, key: 'p1' | 'p2' | 'p3', slot: G
   const clean: GradeSlot = { state: slot.state, value: slot.state === 'nao_feita' || v === null ? null : clampGrade(v) };
   if (slot.state === 'incompleta' && pot !== null) clean.potencial = clampGrade(pot);
   update((s) => {
-    if (!s.subjects.some((x) => x.id === subjectId)) return s;
+    const sub = s.subjects.find((x) => x.id === subjectId);
+    if (!sub) return s;
     const g = s.grades[subjectId] ?? emptyGrades();
-    return { ...s, grades: { ...s.grades, [subjectId]: { ...g, [key]: clean } } };
+    return { ...s, grades: { ...s.grades, [subjectId]: withSlot(sub, g, key, clean) } };
   });
 }
 
@@ -393,6 +407,10 @@ export const plan: ReadonlySignal<OverallPlan | PlanError> = computed(() => {
 
 export const outlooks: ReadonlySignal<Record<string, Outlook>> = computed(() => {
   const out: Record<string, Outlook> = {};
-  for (const [id, g] of Object.entries(state.value.grades)) out[id] = gradeOutlook(g);
+  const { grades, subjects } = state.value;
+  for (const [id, g] of Object.entries(grades)) {
+    const sub = subjects.find((x) => x.id === id);
+    out[id] = gradeOutlook(g, sub ? gradingKind(sub.nome) : 'normal');
+  }
   return out;
 });

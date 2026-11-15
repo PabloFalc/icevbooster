@@ -1,4 +1,5 @@
 import { useState } from 'preact/hooks';
+import { Info } from './Info';
 
 type Phase = 'idle' | 'reading' | 'error';
 
@@ -32,11 +33,13 @@ export function Upload({ label, accept, onFile, hint = 'Tire o print com a tabel
 
   return (
     <div class="upload">
-      <label class={`upload-btn${phase === 'reading' ? ' busy' : ''}`}>
-        <input type="file" accept={accept} onChange={onChange} disabled={phase === 'reading'} />
-        {label}
-      </label>
-      <p class="upload-hint">{hint}</p>
+      <div class="upload-row">
+        <label class={`upload-btn${phase === 'reading' ? ' busy' : ''}`}>
+          <input type="file" accept={accept} onChange={onChange} disabled={phase === 'reading'} />
+          {label}
+        </label>
+        {hint && <Info text={hint} />}
+      </div>
       {phase === 'reading' && (
         <p class="upload-status" role="status">
           <progress aria-label="Lendo o print" />

@@ -40,7 +40,20 @@ function prefixSubset(short: string[], long: string[]): boolean {
   return short.every((t) => long.some((l) => l.startsWith(t)));
 }
 
+export type UniqueKind = 'ingles' | 'extensao';
+
+/** Inglês and Projeto de Extensão: one of each per period, so their numerals never matter. */
+export function uniqueKind(nome: string): UniqueKind | null {
+  const words = normalizeName(nome).split(' ');
+  if (words.includes('ingles')) return 'ingles';
+  if (words.includes('extensao')) return 'extensao';
+  return null;
+}
+
 export function namesMatch(a: string, b: string): boolean {
+  const ka = uniqueKind(a);
+  const kb = uniqueKind(b);
+  if (ka || kb) return ka === kb;
   const A = split(a);
   const B = split(b);
   if (A.words.length === 0 || B.words.length === 0) return false;

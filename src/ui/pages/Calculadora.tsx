@@ -1,17 +1,14 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { ComponentChildren } from 'preact';
 import { compositeNeeds, compositeSummary, compositeToSlot } from '../../domain/composite';
 import type { Composite, CompositeMode, Part } from '../../domain/composite';
-import { formatNeeded, formatNum, parseDecimal } from '../../domain/dates';
-import { gradeOutlook } from '../../domain/grades';
-import type { Outlook } from '../../domain/grades';
-import { notaFromAcertos } from '../../domain/simulado';
+import { formatFloor, formatNeeded, formatNum, parseDecimal } from '../../domain/dates';
+import { gradeOutlook, gradingKind } from '../../domain/grades';
+import { acertosFor, notaFromAcertos } from '../../domain/simulado';
 import type { GradeSlot, SubjectGrades } from '../../domain/types';
-import { removeComposite, setComposite, state } from '../../state/store';
+import { removeComposite, setComposite, setGradeSlot, state } from '../../state/store';
+import { keysFor, labelFor, OutlookTiles, Progress, Tile } from '../GradeTiles';
+import type { Key } from '../GradeTiles';
 import { SimuladoTable } from '../SimuladoTable';
-
-type PKey = 'p1' | 'p2';
-interface Link { m: string; p: PKey }
 
 const fmtInput = (v: number | null) => (v === null ? '' : String(v).replace('.', ','));
 const fmtSum = (n: number) => formatNum(n).replace(/,00$/, '').replace(/(,\d)0$/, '$1');
@@ -25,15 +22,15 @@ function seedComposite(s: GradeSlot): Composite {
   }
   return defaultComposite();
 }
-const emptySlot = () => ({ state: 'nao_feita' as const, value: null });
+const emptySlot = (): GradeSlot => ({ state: 'nao_feita', value: null });
+const isKey = (p: string | null): p is Key => p === 'p1' || p === 'p2' || p === 'p3';
 
-/** Reads `?m=<id>&p=p1|p2` from the hash; invalid or unknown → null (Cálculo livre). */
-function linkFromHash(hash: string): Link | null {
+/** Reads `?m=<id>&p=p1|p2|p3` from the hash: the subject (null = cálculo livre) and the prova, independently. */
+function fromHash(hash: string): { m: string | null; p: Key | null } {
   const params = new URLSearchParams(hash.split('?')[1] ?? '');
   const m = params.get('m');
   const p = params.get('p');
-  if (!m || (p !== 'p1' && p !== 'p2')) return null;
-  return state.value.subjects.some((s) => s.id === m) ? { m, p } : null;
+  return { m: m && state.value.subjects.some((s) => s.id === m) ? m : null, p: isKey(p) ? p : null };
 }
 
 /** Text input for a number: commits on blur/Enter, comma decimals; `nullable` lets an empty field mean "ainda não". */
@@ -73,161 +70,159 @@ function convertMode(c: Composite, mode: CompositeMode): Composite {
   return { mode, parts };
 }
 
-const acertosText = (n: number) => `${n} ${n === 1 ? 'acerto' : 'acertos'}`;
-
-function Needs({ link, c, o }: { link: Link; c: Composite; o: Outlook }) {
-  if (o.status === 'aprovado') return <>Nesta matéria você já está aprovado.</>;
-  if (o.status === 'reprovado') return <>Nem com 10 nas provas que faltam esta matéria chega à média 4.</>;
-  const own = o.shares[link.p];
-  const needs = own === undefined ? c.parts.map(() => null) : compositeNeeds(c, own);
-  const lines: ComponentChildren[] = [];
-  c.parts.forEach((p, i) => {
-    const n = needs[i];
-    if (n === null || !Number.isFinite(n)) return;
-    const shown = c.mode === 'peso' ? Math.min(n, 10) : n;
-    const de = c.mode === 'pontos' ? ` (de ${fmtSum(p.max)})` : '';
-    lines.push(<span key={`part${i}`}>Tire <b>{formatNeeded(shown)}</b> em {p.nome || `parte ${i + 1}`}{de}</span>);
-  });
-  for (const k of ['p1', 'p2'] as const) {
-    const v = o.shares[k];
-    if (k !== link.p && v !== undefined) lines.push(<span key={k}><b>{formatNeeded(v)}</b> na {k.toUpperCase()}</span>);
-  }
-  if (o.shares.p3 !== undefined) {
-    lines.push(
-      <span key="p3">
-        <b>{formatNeeded(o.shares.p3)}</b> no simulado
-        {o.simuladoAcertos !== null && <> → <span class="acc">{acertosText(o.simuladoAcertos)}</span> ({formatNum(notaFromAcertos(o.simuladoAcertos))})</>}
-      </span>,
-    );
-  }
+/** Parts editor for one prova (quizzes, trabalhos, prova…), by points or by weight. */
+function PartsForm({ c, save, linked }: { c: Composite; save(c: Composite): void; linked: boolean }) {
+  const peso = c.mode === 'peso';
+  const setPart = (i: number, patch: Partial<Part>) => save({ ...c, parts: c.parts.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
+  const sum = compositeSummary(c);
+  const total = c.parts.reduce((s, p) => s + (Number.isFinite(p.max) && p.max > 0 ? p.max : 0), 0);
   return (
     <>
-      Com {formatNum(o.atual)} pontos na matéria, faltam <b>{formatNeeded(o.restantes)}</b> para os 21.
-      {lines.length > 0 && (
-        <>
-          <br />{o.status === 'rec' ? 'Só com REC (média ≥ 4): ' : ''}
-          {lines.flatMap((l, i) => (i ? [<br key={`b${i}`} />, l] : [l]))}
-          {o.status === 'rec' && o.recQuestoes !== null && <><br />Aí precisaria de <b>{o.recQuestoes}/10</b> questões na REC.</>}
-        </>
+      <div class="seg" role="group" aria-label="Modo">
+        <button type="button" class={peso ? '' : 'on'} aria-pressed={!peso} onClick={() => save(convertMode(c, 'pontos'))}>Por pontos</button>
+        <button type="button" class={peso ? 'on' : ''} aria-pressed={peso} onClick={() => save(convertMode(c, 'peso'))}>Por peso</button>
+      </div>
+      {c.parts.map((p, i) => (
+        <div class="part" key={i}>
+          <input
+            class="field nome" type="text" aria-label={`Nome da parte ${i + 1}`} value={p.nome} placeholder="Nome"
+            onInput={(e) => setPart(i, { nome: e.currentTarget.value })}
+          />
+          <span class="dim">{peso ? 'peso %' : 'vale'}</span>
+          <NumInput
+            value={p.max} label={`${peso ? 'Peso' : 'Vale'} da parte ${i + 1}`}
+            accept={(n) => n >= 0 && (peso ? n <= 100 : n <= 10)} onCommit={(n) => { if (n !== null) setPart(i, { max: n }); }}
+          />
+          <span class="dim">{peso ? 'nota' : 'tirei'}</span>
+          <NumInput
+            value={p.tirei} label={`${peso ? 'Nota' : 'Tirei'} na parte ${i + 1}`} nullable placeholder="—"
+            accept={(n) => n >= 0} onCommit={(n) => setPart(i, { tirei: n === null ? null : Math.min(n, peso ? 10 : p.max) })}
+          />
+          <button
+            type="button" class="x" aria-label={`Remover parte ${i + 1}`} disabled={c.parts.length <= 1}
+            onClick={() => save({ ...c, parts: c.parts.filter((_, j) => j !== i) })}
+          >×</button>
+        </div>
+      ))}
+      <button type="button" class="add" onClick={() => save({ ...c, parts: [...c.parts, { nome: `Parte ${c.parts.length + 1}`, max: 0, tirei: null }] })}>
+        ＋ parte
+      </button>
+      {!sum.valid && (
+        <p class="warn-msg" role="alert">
+          {peso ? `Os pesos somam ${fmtSum(total)}% (precisa 100%).` : `As partes somam ${fmtSum(total)} (precisa 10).`}
+          {linked ? ' A nota não é atualizada.' : ''}
+        </p>
       )}
     </>
   );
 }
 
 export function Calculadora() {
-  const [link, setLink] = useState<Link | null>(() => linkFromHash(location.hash));
+  const init = fromHash(location.hash);
+  const [m, setM] = useState<string | null>(init.m);
+  const [prova, setProva] = useState<Key>(init.p ?? 'p2');
   useEffect(() => {
-    const on = () => setLink(linkFromHash(location.hash));
+    const on = () => {
+      const h = fromHash(location.hash);
+      setM(h.m);
+      if (h.p) setProva(h.p);
+    };
     addEventListener('hashchange', on);
     return () => removeEventListener('hashchange', on);
   }, []);
 
   const { subjects, composites, grades } = state.value;
-  const key = link ? `${link.m}:${link.p}` : 'livre';
-  const stored = composites[key];
-  const subject = link ? subjects.find((s) => s.id === link.m) : undefined;
-  const realGrades: SubjectGrades = (subject && grades[subject.id]) || { p1: emptySlot(), p2: emptySlot(), p3: emptySlot() };
-  const c = stored ?? (link ? seedComposite(realGrades[link.p]) : defaultComposite());
-  const linked = link !== null && stored !== undefined;
+  const subject = m ? subjects.find((s) => s.id === m) : undefined;
+  const kind = subject ? gradingKind(subject.nome) : 'normal';
+  const keys = subject ? keysFor(kind) : (['p1', 'p2', 'p3'] as Key[]);
+  // Extensão has a single "P1 = P2" grade: P2 shows as P1
+  const p: Key = keys.includes(prova) ? prova : 'p1';
+  const simulado = Boolean(subject) && kind === 'normal' && p === 'p3';
 
-  const select = (value: string) => {
-    const [m, p] = value.split(':');
-    const next: Link | null = value === 'livre' ? null : { m, p: p as PKey };
-    history.replaceState(null, '', next ? `#/calculadora?m=${encodeURIComponent(m)}&p=${p}` : '#/calculadora');
-    setLink(next);
+  const go = (nextM: string | null, nextP: Key) => {
+    history.replaceState(null, '', nextM ? `#/calculadora?m=${encodeURIComponent(nextM)}&p=${nextP}` : '#/calculadora');
+    setM(nextM);
+    setProva(nextP);
   };
-  const save = (next: Composite) => setComposite(key, next);
-  const setPart = (i: number, patch: Partial<Part>) => save({ ...c, parts: c.parts.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
 
+  const key = subject ? `${subject.id}:${p}` : 'livre';
+  const stored = composites[key];
+  const realGrades: SubjectGrades = (subject && grades[subject.id]) || { p1: emptySlot(), p2: emptySlot(), p3: emptySlot() };
+  const c = stored ?? (subject ? seedComposite(realGrades[p]) : defaultComposite());
   const sum = compositeSummary(c);
-  const total = c.parts.reduce((s, p) => s + (Number.isFinite(p.max) && p.max > 0 ? p.max : 0), 0);
-  const peso = c.mode === 'peso';
-  // the outlook always reflects the form (seeded or stored), so panel and table agree
-  const g: SubjectGrades = link ? { ...realGrades, [link.p]: sum.valid ? compositeToSlot(c) : realGrades[link.p] } : realGrades;
-  const outlook = subject && link ? gradeOutlook(g) : null;
-  const unit = link ? link.p.toUpperCase() : 'nota';
+  const save = (next: Composite) => setComposite(key, next);
+
+  // the outlook reflects the form (seeded or stored) for the selected prova
+  const g: SubjectGrades = subject && !simulado ? { ...realGrades, [p]: sum.valid ? compositeToSlot(c) : realGrades[p] } : realGrades;
+  const outlook = subject ? gradeOutlook(g, kind) : null;
+  const share = outlook?.shares[p];
+  const needs = !simulado && share !== undefined ? compositeNeeds(c, share) : c.parts.map(() => null);
+  const partTiles = needs.flatMap((n, i) => {
+    if (n === null || !Number.isFinite(n)) return [];
+    const part = c.parts[i];
+    const shown = c.mode === 'peso' ? Math.min(n, 10) : n;
+    return [<Tile key={`part${i}`} label={part.nome || `Parte ${i + 1}`} big={formatNeeded(shown)} sub={c.mode === 'pontos' ? `de ${fmtSum(part.max)}` : 'nota'} />];
+  });
+
+  const p3 = realGrades.p3;
+  const acertosNow = p3.state === 'completa' && p3.value !== null ? acertosFor(p3.value) : null;
 
   return (
     <div class="calc-page">
       <section class="card glass">
-        <div class="hd">
-          <div>
-            <h3>Montar uma nota</h3>
-            <div class="meta">{link && subject ? `ligada a: ${subject.nome} · ${unit}` : 'cálculo livre, não altera suas notas'}</div>
-          </div>
-          <div class="seg" role="group" aria-label="Modo">
-            <button type="button" class={peso ? '' : 'on'} aria-pressed={!peso} onClick={() => save(convertMode(c, 'pontos'))}>Por pontos</button>
-            <button type="button" class={peso ? 'on' : ''} aria-pressed={peso} onClick={() => save(convertMode(c, 'peso'))}>Por peso</button>
-          </div>
+        <div class="calc-sel">
+          <label class="lbl">
+            Matéria
+            <select aria-label="Matéria" value={subject ? subject.id : 'livre'} onChange={(e) => {
+              const v = e.currentTarget.value;
+              go(v === 'livre' ? null : v, prova);
+            }}>
+              <option value="livre">Cálculo livre</option>
+              {subjects.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+            </select>
+          </label>
+          <label class="lbl">
+            Prova
+            <select aria-label="Prova" value={p} onChange={(e) => go(subject?.id ?? null, e.currentTarget.value as Key)}>
+              {keys.map((k) => <option key={k} value={k}>{subject ? labelFor(kind, k) : k.toUpperCase()}</option>)}
+            </select>
+          </label>
         </div>
 
-        <label class="lbl link-sel">
-          Ligar a
-          <select aria-label="Ligar a" value={link ? key : 'livre'} onChange={(e) => select(e.currentTarget.value)}>
-            <option value="livre">Cálculo livre</option>
-            {subjects.flatMap((s) => (['p1', 'p2'] as const).map((p) => (
-              <option key={`${s.id}:${p}`} value={`${s.id}:${p}`}>{s.nome} · {p.toUpperCase()}</option>
-            )))}
-          </select>
-        </label>
-
-        <div class="lbl">Partes da {unit} ({peso ? 'soma dos pesos = 100%' : 'soma dos máximos = 10'})</div>
-        {c.parts.map((p, i) => (
-          <div class="part" key={i}>
-            <input
-              class="field nome" type="text" aria-label={`Nome da parte ${i + 1}`} value={p.nome} placeholder="Nome"
-              onInput={(e) => setPart(i, { nome: e.currentTarget.value })}
-            />
-            <span class="dim">{peso ? 'peso %' : 'vale'}</span>
+        {simulado ? (
+          <div class="part sim-in">
+            <span class="dim">Acertos (0–60)</span>
             <NumInput
-              value={p.max} label={`${peso ? 'Peso' : 'Vale'} da parte ${i + 1}`}
-              accept={(n) => n >= 0 && (peso ? n <= 100 : n <= 10)} onCommit={(n) => { if (n !== null) setPart(i, { max: n }); }}
+              value={acertosNow} label="Acertos no simulado" nullable placeholder="—"
+              accept={(n) => Number.isInteger(n) && n >= 0 && n <= 60}
+              onCommit={(n) => setGradeSlot(subject!.id, 'p3', n === null ? emptySlot() : { state: 'completa', value: notaFromAcertos(n) })}
             />
-            <span class="dim">{peso ? 'nota' : 'tirei'}</span>
-            <NumInput
-              value={p.tirei} label={`${peso ? 'Nota' : 'Tirei'} na parte ${i + 1}`} nullable placeholder="ainda não"
-              accept={(n) => n >= 0} onCommit={(n) => setPart(i, { tirei: n === null ? null : Math.min(n, peso ? 10 : p.max) })}
-            />
-            <button
-              type="button" class="x" aria-label={`Remover parte ${i + 1}`} disabled={c.parts.length <= 1}
-              onClick={() => save({ ...c, parts: c.parts.filter((_, j) => j !== i) })}
-            >×</button>
+            {acertosNow !== null && <span class="dim">= nota <b>{formatNum(notaFromAcertos(acertosNow))}</b></span>}
           </div>
-        ))}
-        <button type="button" class="add" onClick={() => save({ ...c, parts: [...c.parts, { nome: `Parte ${c.parts.length + 1}`, max: 0, tirei: null }] })}>
-          ＋ adicionar parte
-        </button>
-
-        {!sum.valid && (
-          <p class="warn-msg" role="alert">
-            {peso ? `A soma dos pesos precisa dar 100% (agora: ${fmtSum(total)}%).` : `A soma dos valores precisa dar 10 (agora: ${fmtSum(total)}).`}
-          </p>
+        ) : (
+          <PartsForm c={c} save={save} linked={Boolean(subject)} />
         )}
 
-        {link && !sum.valid && <p class="warn-msg">Corrija a soma para atualizar a nota da matéria.</p>}
-
-        <div class={`result inner${sum.valid ? '' : ' flagged'}`} aria-live="polite">
-          Garantido na {unit}: <b>{formatNum(sum.garantido)}</b> · ainda dá para ganhar: <b>{formatNum(sum.potencial)}</b>
-          {!sum.valid && <small class="flag"> (conta provisória: a soma não fecha)</small>}
-          {link && outlook && (<><br /><Needs link={link} c={c} o={outlook} /></>)}
+        <div class={`result inner${sum.valid || simulado ? '' : ' flagged'}`} aria-live="polite">
+          {!simulado && (
+            <div class="mini">Garantido <b>{formatFloor(sum.garantido)}</b> · pode ganhar <b>{formatFloor(sum.potencial)}</b></div>
+          )}
+          {outlook && (
+            <>
+              <Progress atual={outlook.atual} />
+              <OutlookTiles g={g} o={outlook} kind={kind} skip={simulado ? undefined : p} lead={partTiles} />
+            </>
+          )}
         </div>
 
-        {link && subject && (
-          <div class="link-actions">
-            {linked ? (
-              <>
-                <button type="button" class="btn" onClick={() => removeComposite(key)}>Desvincular</button>
-                <small>Libera a nota para edição na aba Notas, mantendo os valores atuais.</small>
-              </>
-            ) : <small>Ao editar as partes, a {unit} de {subject.nome} passa a seguir este cálculo.</small>}
-          </div>
+        {subject && stored !== undefined && !simulado && (
+          <button type="button" class="btn unlink" onClick={() => removeComposite(key)}>Desvincular</button>
         )}
       </section>
 
       <section class="card glass">
-        <h3>Tabela do simulado</h3>
-        <div class="meta">60 questões · destaque = sua meta</div>
-        <SimuladoTable highlight={outlook?.simuladoAcertos ?? null} />
+        <h3><span class="ttl">Tabela do simulado</span></h3>
+        <SimuladoTable highlight={outlook?.simuladoAcertos ?? acertosNow ?? null} />
       </section>
     </div>
   );

@@ -173,7 +173,7 @@ function PdfImport() {
 
   return (
     <section class="card glass prints">
-      <h3>Calendário acadêmico (PDF)</h3>
+      <h3><span class="ttl">Calendário acadêmico (PDF)</span></h3>
       <Upload
         label="Enviar PDF do calendário" accept="application/pdf" onFile={onPdf}
         hint="O PDF é lido aqui no navegador. Você confirma cada data antes de importar."
@@ -224,7 +224,7 @@ export function Calendario() {
     <div class="cal-page">
       <section class="card glass">
         <h3>
-          Calendário de faltas
+          <span class="ttl">Calendário de faltas</span>
           <div class="seg" role="group" aria-label="Filtrar por matéria">
             <button type="button" class={active === undefined ? 'on' : ''} aria-pressed={active === undefined} onClick={() => setFilter(undefined)}>Todas</button>
             {chips.map((c) => (

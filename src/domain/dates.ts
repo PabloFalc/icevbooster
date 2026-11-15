@@ -23,6 +23,11 @@ export function formatBr(d: Iso): string {
   return `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 }
 
+/** DD/MM/AAAA. */
+export function formatBrFull(d: Iso): string {
+  return `${formatBr(d)}/${d.slice(0, 4)}`;
+}
+
 export function formatNum(n: number, decimals = 2): string {
   return n.toFixed(decimals).replace('.', ',');
 }

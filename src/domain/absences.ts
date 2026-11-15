@@ -1,5 +1,5 @@
 import type { ChSource, Subject } from './types';
-import { normalizeName } from './nameMatch';
+import { uniqueKind } from './nameMatch';
 
 export function limiteFaltas(ch: number): number {
   return Math.floor(ch * 0.25);
@@ -30,8 +30,7 @@ export function inferCh(faltas: number, percentual: number | null): 36 | 72 | nu
 }
 
 export function isFixed36(nome: string): boolean {
-  const n = normalizeName(nome);
-  return n.includes('ingles') || n.includes('extensao');
+  return uniqueKind(nome) !== null;
 }
 
 export function resolveCh(

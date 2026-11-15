@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addDays, weekdayOf, formatBr, formatNum, formatNeeded, formatFloor, todayIso, parseDecimal } from './dates';
+import { addDays, weekdayOf, formatBr, formatBrFull, formatNum, formatNeeded, formatFloor, todayIso, parseDecimal } from './dates';
 
 describe('dates', () => {
   it('weekdayOf', () => {
@@ -12,6 +12,7 @@ describe('dates', () => {
   });
   it('formatBr', () => {
     expect(formatBr('2026-12-10')).toBe('10/12');
+    expect(formatBrFull('2026-12-10')).toBe('10/12/2026');
   });
   it('formatNum', () => {
     expect(formatNum(7.15)).toBe('7,15');

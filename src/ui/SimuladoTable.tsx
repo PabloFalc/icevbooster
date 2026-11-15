@@ -2,8 +2,12 @@ import { useEffect, useRef } from 'preact/hooks';
 import { formatNum } from '../domain/dates';
 import { SIMULADO_TABLE } from '../domain/simulado';
 
-/** All 61 rows (0–60 acertos) in 4 columns; the `highlight` row gets class `hl` and is scrolled into view. */
-export function SimuladoTable({ highlight }: { highlight?: number | null }) {
+const ROWS = SIMULADO_TABLE.slice(0, SIMULADO_TABLE.indexOf(10) + 1);
+
+/** Rows from 0 acertos up to the first 10,00 (48 acertos; more is still 10) in 4 columns; the `highlight` row gets class `hl` and is scrolled into view. */
+export function SimuladoTable({ highlight: raw }: { highlight?: number | null }) {
+  // 48+ acertos all score 10: they share the last row
+  const highlight = raw == null ? raw : Math.min(raw, ROWS.length - 1);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const c = box.current;
@@ -14,9 +18,9 @@ export function SimuladoTable({ highlight }: { highlight?: number | null }) {
   }, [highlight]);
   return (
     <div class="simtab" ref={box} tabIndex={0} aria-label="Tabela do simulado">
-      {SIMULADO_TABLE.map((nota, acertos) => (
+      {ROWS.map((nota, acertos) => (
         <div key={acertos} class={acertos === highlight ? 'hl' : undefined} aria-current={acertos === highlight ? 'true' : undefined}>
-          <span>{acertos}</span>{formatNum(nota)}
+          <span>{acertos === ROWS.length - 1 ? `${acertos}+` : acertos}</span>{formatNum(nota)}
         </div>
       ))}
     </div>

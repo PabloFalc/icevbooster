@@ -1,5 +1,10 @@
 import { acertosFor, notaFromAcertos } from './simulado';
 import type { GradeSlot, SubjectGrades } from './types';
+import { uniqueKind } from './nameMatch';
+
+/** 'extensao': Projeto de Extensão has no simulado — P2 is the same grade as P1 and P3 is a normal grade. */
+export type GradingKind = 'normal' | 'extensao';
+export const gradingKind = (nome: string): GradingKind => (uniqueKind(nome) === 'extensao' ? 'extensao' : 'normal');
 
 const EPS = 1e-9;
 
@@ -56,7 +61,9 @@ export function capacity(s: GradeSlot): number {
   return Math.min(clampGrade(s.potencial ?? 10 - v), 10 - v);
 }
 
-export function gradeOutlook(g: SubjectGrades): Outlook {
+export function gradeOutlook(input: SubjectGrades, kind: GradingKind = 'normal'): Outlook {
+  const g: SubjectGrades = kind === 'extensao' ? { ...input, p2: input.p1 } : input;
+  const simulado = kind === 'normal';
   const atual = KEYS.reduce((s, k) => s + guaranteed(g[k]), 0);
   const restantes = Math.max(0, 21 - atual);
   const caps = KEYS.map((k) => capacity(g[k]));
@@ -83,7 +90,7 @@ export function gradeOutlook(g: SubjectGrades): Outlook {
     if (!parts) return null;
     const shares: Outlook['shares'] = {};
     openKeys.forEach((k, i) => { shares[k] = parts[i]; });
-    const simuladoAcertos = p3Open ? acertosFor(shares.p3 as number) : null;
+    const simuladoAcertos = p3Open && simulado ? acertosFor(shares.p3 as number) : null;
     if (status === 'andamento') {
       return { atual, restantes, status, target, shares, simuladoAcertos, recQuestoes: null };
     }
