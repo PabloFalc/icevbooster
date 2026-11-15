@@ -13,7 +13,13 @@ import type { Key } from '../GradeTiles';
 const STATE_TEXT: Record<SlotState, string> = { completa: 'completa', incompleta: 'incompleta', nao_feita: 'não feita' };
 const STATE_CLASS: Record<SlotState, string> = { completa: 'c', incompleta: 'i', nao_feita: 'n' };
 const BADGE: Record<Outlook['status'], [string, string]> = {
-  aprovado: ['aprovado', 'ok'], andamento: ['em andamento', 'warn'], rec: ['só com REC', 'bad'], reprovado: ['reprovado', 'bad'],
+  aprovado: ['aprovado', 'ok'], andamento: ['em andamento', 'warn'], rec: ['REC final', 'bad'], reprovado: ['reprovado', 'bad'],
+};
+
+/** Why a subject is in REC final or failed: shown on the badge's info dot. */
+const STATUS_TIP: Partial<Record<Outlook['status'], string>> = {
+  rec: 'REC final: não dá para chegar aos 21 pontos, mas a média fica em 4 ou mais.',
+  reprovado: 'Média abaixo de 4: sem direito à REC final.',
 };
 
 const emptySlot = (): GradeSlot => ({ state: 'nao_feita', value: null });
@@ -88,7 +94,10 @@ function SubjectCard({ s }: { s: Subject }) {
     <section class="card glass nota-card">
       <div class="nota-hd">
         <h3 title={s.nome}>{s.nome}</h3>
-        <span class={`badge ${cls}`}>{badge}</span>
+        <span class="badge-wrap">
+          <span class={`badge ${cls}`}>{badge}</span>
+          {STATUS_TIP[o.status] && <Info text={STATUS_TIP[o.status]!} tone={o.status === 'andamento' ? 'warn' : 'bad'} />}
+        </span>
       </div>
       <div class={`provas${kind === 'extensao' ? ' two' : ''}`}>
         {keysFor(kind).map((k) => (

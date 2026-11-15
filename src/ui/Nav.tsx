@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { Route } from '../router';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -13,10 +14,25 @@ const TABS: { route: Route; label: string; icon: ComponentChildren }[] = [
   { route: 'calculadora', label: 'Calculadora', icon: <Icon><rect x="5" y="2" width="14" height="20" rx="3" /><path d="M8 6h8M8 11h2M14 11h2M8 15h2M14 15h2" /></Icon> },
 ];
 
+interface Box { left: number; top: number; width: number; height: number }
+
 export function Nav({ route }: { route: Route }) {
+  // a pill behind the tabs that slides to the active one
+  const nav = useRef<HTMLElement>(null);
+  const [ind, setInd] = useState<Box | null>(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = nav.current?.querySelector<HTMLElement>('.tab.on');
+      if (el) setInd({ left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight });
+    };
+    measure();
+    addEventListener('resize', measure);
+    return () => removeEventListener('resize', measure);
+  }, [route]);
   return (
     <>
-      <nav class="topnav glass" aria-label="Principal">
+      <nav class="topnav glass" aria-label="Principal" ref={nav}>
+        {ind && <span class="tab-ind" aria-hidden="true" style={{ transform: `translate(${ind.left}px, ${ind.top}px)`, width: `${ind.width}px`, height: `${ind.height}px` }} />}
         <div class="brand">icev<span>booster</span></div>
         {TABS.map((t) => (
           <a key={t.route} href={`#/${t.route}`} class={`tab${t.route === route ? ' on' : ''}`} aria-current={t.route === route ? 'page' : undefined}>

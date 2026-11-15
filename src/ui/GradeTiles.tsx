@@ -40,7 +40,7 @@ export function Progress({ atual }: { atual: number }) {
 }
 
 /**
- * What the student still needs, as tiles: one per open prova (the simulado in acertos), plus the REC.
+ * What the student still needs, as tiles: one per open prova (the simulado in acertos), plus the REC final.
  * `skip` leaves out one prova (the calculator shows its parts instead, passed as `lead`).
  */
 export function OutlookTiles({ g, o, kind, skip, lead }: {
@@ -57,11 +57,11 @@ export function OutlookTiles({ g, o, kind, skip, lead }: {
   });
   return (
     <>
-      {o.status === 'rec' && <div class="goals-l">Para ir à REC</div>}
+      {o.status === 'rec' && <div class="goals-l">Para ir à REC final (média ≥ 4)</div>}
       <Tiles>
         {lead}
         {tiles}
-        {o.status === 'rec' && o.recQuestoes !== null && <Tile label="REC" big={`${o.recQuestoes}/10`} sub="questões" tone="rec" />}
+        {o.status === 'rec' && o.recQuestoes !== null && <Tile label="REC final" big={`${o.recQuestoes}/10`} sub="questões" tone="rec" />}
       </Tiles>
     </>
   );

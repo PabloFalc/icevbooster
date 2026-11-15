@@ -56,7 +56,7 @@ describe('Notas page', () => {
     importNotas([nota('Difícil', 0.976)], '2026-11-14');
     render(<Notas />);
     const c = within(card('Difícil'));
-    expect(c.getByText('Para ir à REC')).toBeTruthy();
+    expect(c.getByText('Para ir à REC final (média ≥ 4)')).toBeTruthy();
     expect(c.getAllByText('5,52')).toHaveLength(1); // 11,024 / 2: P2 tile (simulado shows acertos)
   });
 
@@ -64,8 +64,10 @@ describe('Notas page', () => {
     importNotas([nota('Difícil', 0.5, 2)], '2026-11-14');
     render(<Notas />);
     const c = within(card('Difícil'));
-    expect(c.getByText('só com REC')).toBeTruthy();
-    expect(c.getByText('Para ir à REC')).toBeTruthy();
+    expect(c.getByText('REC final', { selector: '.badge' })).toBeTruthy();
+    expect(c.getByLabelText('REC final: não dá para chegar aos 21 pontos, mas a média fica em 4 ou mais.')).toBeTruthy();
+    expect(c.getByText('REC final', { selector: '.t-l' })).toBeTruthy();
+    expect(c.getByText('Para ir à REC final (média ≥ 4)')).toBeTruthy();
     expect(c.getByText('8/10')).toBeTruthy();
     expect(c.getByText('46')).toBeTruthy();
   });

@@ -7,6 +7,14 @@ import { Calendario } from './ui/pages/Calendario';
 import { Notas } from './ui/pages/Notas';
 import { Calculadora } from './ui/pages/Calculadora';
 
+/** What each page is for, in a few words, under its title. */
+const SUBTITLES: Record<Route, string> = {
+  faltas: 'Quanto ainda dá para faltar',
+  calendario: 'Onde dá para faltar, dia a dia',
+  notas: 'Quanto falta para passar',
+  calculadora: 'Monte sua nota por partes',
+};
+
 const TITLES: Record<Route, string> = {
   faltas: 'Faltas',
   calendario: 'Calendário',
@@ -24,8 +32,12 @@ export function App() {
   return (
     <div class="shell">
       <Nav route={route} />
-      <main class="page">
-        <h1>{TITLES[route]}</h1>
+      {/* keyed by route: the page remounts and plays its entrance animation */}
+      <main class="page" key={route}>
+        <header class="page-hd">
+          <h1>{TITLES[route]}</h1>
+          <p>{SUBTITLES[route]}</p>
+        </header>
         {route === 'faltas' && <Faltas />}
         {route === 'calendario' && <Calendario />}
         {route === 'notas' && <Notas />}
