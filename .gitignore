@@ -1,2 +1,6 @@
 examples
 .superpowers/
+node_modules/
+dist/
+.vercel/
+*.traineddata
